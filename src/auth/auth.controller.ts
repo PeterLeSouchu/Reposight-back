@@ -11,7 +11,8 @@ export class AuthController {
   @Get('github')
   @UseGuards(AuthGuard('github'))
   async githubAuth() {
-    // Cette méthode est déclenchée par Passport
+    // Nécessaire pour déclarer la route GET /auth/github
+    // La redirection se fait automatiquement par Passport
   }
 
   @Get('github/callback')
