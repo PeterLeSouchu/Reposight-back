@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: any) => {
@@ -12,9 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey:
-        process.env.JWT_SECRET ||
-        '3Ofwwe0xDimXYUTrto/AL7YGz+0Z4xywAM55g+OPLJird9kNeFCVZNYYG+pl90Xj',
+      secretOrKey: configService.get<string>('JWT_SECRET') || '',
     });
   }
 

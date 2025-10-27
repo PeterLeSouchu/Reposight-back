@@ -1,4 +1,4 @@
-import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -37,10 +37,11 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {
+    console.log('req.user', req.user);
     return req.user;
   }
 
-  @Get('logout')
+  @Post('logout')
   logout(@Res() res: Response) {
     res.clearCookie('jwt');
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
