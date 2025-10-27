@@ -45,6 +45,7 @@ export class AuthController {
   logout(@Res() res: Response) {
     res.clearCookie('jwt');
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    return res.redirect(frontendUrl);
+    // return res.redirect(frontendUrl);
+    return res.json({ message: 'Déconnexion réussie' });
   }
 }
