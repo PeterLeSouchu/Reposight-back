@@ -20,15 +20,16 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
     profile: any,
     done: any,
   ) {
-    // Retourner directement le profile GitHub
     const user = {
       id: profile.id,
       githubId: profile.id,
       username: profile.username,
-      displayName: profile.displayName,
-      profileUrl: profile.profileUrl,
-      photos: profile.photos,
+      avatar: profile.photos?.[0]?.value || profile._json?.avatar_url || '',
+      email: profile.emails?.[0]?.value || profile._json?.email || '',
+      refreshToken: refreshToken,
+      accessToken: accessToken,
     };
+    console.log('user dans la strategy github', user);
     done(null, user);
   }
 }

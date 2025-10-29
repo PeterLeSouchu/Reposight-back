@@ -6,7 +6,6 @@ import { AuthService } from './auth.service';
 import { GitHubStrategy } from './strategies/github.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigService } from '@nestjs/config';
-import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -15,7 +14,8 @@ import { ConfigModule } from '@nestjs/config';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '7d' },
+        // signOptions: { expiresIn: '7d' },
+        signOptions: { expiresIn: '5s' },
       }),
     }),
   ],

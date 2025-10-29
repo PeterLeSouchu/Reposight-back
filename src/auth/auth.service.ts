@@ -22,6 +22,8 @@ export class AuthService {
       id: user.id,
       githubId: user.githubId,
       username: user.username,
+      avatar: user.avatar,
+      email: user.email,
     };
     return this.jwtService.sign(payload);
   }
