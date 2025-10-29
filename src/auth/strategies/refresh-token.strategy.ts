@@ -4,21 +4,31 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class RefreshTokenStrategy extends PassportStrategy(
+  Strategy,
+  'refresh-token',
+) {
   constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: any) => {
-          return request?.cookies?.access_token || null;
+          return (
+            request?.body?.refreshToken ||
+            request?.cookies?.refresh_token ||
+            null
+          );
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || '',
+      secretOrKey:
+        configService.get<string>('JWT_REFRESH_SECRET') ||
+        configService.get<string>('JWT_SECRET') ||
+        '',
     });
   }
 
   async validate(payload: any) {
-    if (payload.type && payload.type !== 'access') {
+    if (payload.type !== 'refresh') {
       throw new UnauthorizedException('Invalid token type');
     }
     return {

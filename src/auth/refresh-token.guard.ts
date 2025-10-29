@@ -6,7 +6,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class RefreshTokenGuard extends AuthGuard('refresh-token') {
   canActivate(context: ExecutionContext) {
     return super.canActivate(context);
   }
@@ -14,8 +14,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   handleRequest(err: any, user: any, info: any) {
     // Si pas de user OU erreur OU info (token invalide/expiré)
     if (err || !user || info) {
-      // Access token invalide/expiré/absent → toujours le même message
-      throw new UnauthorizedException('jwt access token expired');
+      // Refresh token invalide/expiré/absent → toujours le même message
+      throw new UnauthorizedException('jwt refresh token expired');
     }
     return user;
   }
