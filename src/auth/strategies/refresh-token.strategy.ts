@@ -20,10 +20,7 @@ export class RefreshTokenStrategy extends PassportStrategy(
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('JWT_REFRESH_SECRET') ||
-        configService.get<string>('JWT_SECRET') ||
-        '',
+      secretOrKey: configService.get<string>('JWT_REFRESH_SECRET') || '',
     });
   }
 

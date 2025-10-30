@@ -34,15 +34,6 @@ export class AuthController {
       'http://localhost:3000',
     );
 
-    // Access token
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      // maxAge: 30 * 60 * 1000, // Production : 30 minutes
-      maxAge: 5 * 1000, // Test : 5 secondes
-    });
-
     // Refresh token
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
@@ -74,14 +65,6 @@ export class AuthController {
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
 
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      // maxAge: 30 * 60 * 1000, // Production : 30 minute
-      maxAge: 5 * 1000, // Test : 5 secondes
-    });
-
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: isProduction,
@@ -93,6 +76,7 @@ export class AuthController {
     console.log("c'est fini");
     return res.json({
       message: 'Tokens refreshed successfully',
+      accessToken,
     });
   }
 
