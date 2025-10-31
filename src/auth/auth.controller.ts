@@ -39,8 +39,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      // maxAge: 7 * 24 * 60 * 60 * 1000, // Production : 7 jours
-      maxAge: 60 * 1000, // Test : 1 minute
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
     return res.redirect(`${frontendUrl}/dashboard`);
@@ -69,8 +68,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      // maxAge: 7 * 24 * 60 * 60 * 1000, // Production : 7 jours
-      maxAge: 60 * 1000, // Test : 1 minute
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
     console.log("c'est fini");

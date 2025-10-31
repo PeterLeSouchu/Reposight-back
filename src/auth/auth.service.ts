@@ -31,10 +31,9 @@ export class AuthService {
       type: 'access',
     };
     const secret = this.configService.get<string>('JWT_SECRET') || '';
-    // expiresIn: '30m', // Production : 30 minutes
     return this.jwtService.sign(payload, {
       secret,
-      expiresIn: '5s', // Test : 5 secondes
+      expiresIn: '15m', // 15 minutes
     });
   }
 
@@ -52,10 +51,9 @@ export class AuthService {
       this.configService.get<string>('JWT_REFRESH_SECRET') ||
       this.configService.get<string>('JWT_SECRET') ||
       '';
-    // expiresIn: '7d', // Production : 7 jours
     return this.jwtService.sign(payload, {
       secret: refreshSecret,
-      expiresIn: '1m', // Test : 1 minute
+      expiresIn: '7d', // 7 jours
     });
   }
 
