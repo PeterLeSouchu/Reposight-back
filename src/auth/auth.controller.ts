@@ -5,12 +5,14 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RefreshTokenGuard } from './refresh-token.guard';
+import { UsersService } from '../users/users.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
+    private usersService: UsersService,
   ) {}
 
   @Get('github')
@@ -24,6 +26,23 @@ export class AuthController {
   @UseGuards(AuthGuard('github'))
   async githubCallback(@Req() req: Request, @Res() res: Response) {
     const user = req.user as any;
+
+    // Vérifier si l'utilisateur existe déjà en DynamoDB
+    const existingUser = await this.usersService.findByGitHubId(
+      user.githubId || user.id,
+    );
+
+    // Si l'utilisateur n'existe pas, le créer
+    if (!existingUser) {
+      await this.usersService.create({
+        githubId: user.githubId || user.id,
+        username: user.username,
+        email: user.email || '',
+        avatar: user.avatar || '',
+      });
+    }
+
+    // Générer les tokens (utilise les données du user GitHub)
     const { accessToken, refreshToken } =
       await this.authService.generateTokens(user);
 
