@@ -90,8 +90,9 @@ export class AuthController {
   }
 
   @Post('logout')
+  @UseGuards(JwtAuthGuard)
   logout(@Res() res: Response) {
-    res.clearCookie('access_token');
+    console.log('logoutssssss');
     res.clearCookie('refresh_token');
     return res.json({ message: 'Déconnexion réussie' });
   }
