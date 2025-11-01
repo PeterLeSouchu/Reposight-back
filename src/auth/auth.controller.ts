@@ -64,16 +64,9 @@ export class AuthController {
     return res.redirect(`${frontendUrl}/dashboard`);
   }
 
-  @Get('me')
-  @UseGuards(JwtAuthGuard)
-  async getProfile(@Req() req: Request) {
-    return req.user;
-  }
-
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)
   async refreshToken(@Req() req: Request, @Res() res: Response) {
-    console.log('on est dans la route refresh token');
     const user = req.user as any;
 
     // Générer de nouveaux tokens avec les infos du refresh token
@@ -90,7 +83,6 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
-    console.log("c'est fini");
     return res.json({
       message: 'Tokens refreshed successfully',
       accessToken,
