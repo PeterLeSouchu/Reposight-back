@@ -32,13 +32,22 @@ export class AuthController {
       user.githubId || user.id,
     );
 
-    // Si l'utilisateur n'existe pas, le créer
+    // Si l'utilisateur n'existe pas, le créer avec le token GitHub
     if (!existingUser) {
       await this.usersService.create({
         githubId: user.githubId || user.id,
         username: user.username,
         email: user.email || '',
         avatar: user.avatar || '',
+        githubAccessToken: user.accessToken || '',
+      });
+    } else {
+      // Mettre à jour les infos utilisateur et le token GitHub (le token change à chaque reconnexion)
+      await this.usersService.update(user.githubId || user.id, {
+        username: user.username,
+        email: user.email || '',
+        avatar: user.avatar || '',
+        githubAccessToken: user.accessToken || '',
       });
     }
 

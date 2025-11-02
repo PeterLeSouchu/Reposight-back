@@ -5,6 +5,7 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 
 @Injectable()
@@ -61,6 +62,7 @@ export class UsersService {
     username: string;
     email: string;
     avatar: string;
+    githubAccessToken?: string;
   }): Promise<any> {
     try {
       const user = {
@@ -68,7 +70,7 @@ export class UsersService {
         username: userData.username,
         email: userData.email,
         avatar: userData.avatar,
-        repos: [],
+        githubAccessToken: userData.githubAccessToken || '',
         favorites: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -84,6 +86,76 @@ export class UsersService {
       return user;
     } catch (error) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Met à jour un utilisateur existant en DynamoDB
+   * @param githubId - L'identifiant GitHub de l'utilisateur
+   * @param updateData - Les données à mettre à jour
+   * @returns L'utilisateur mis à jour
+   */
+  async update(
+    githubId: string | number,
+    updateData: {
+      githubAccessToken?: string;
+      username?: string;
+      email?: string;
+      avatar?: string;
+    },
+  ): Promise<any> {
+    try {
+      const updateExpression: string[] = [];
+      const expressionAttributeValues: any = {};
+      const expressionAttributeNames: any = {};
+
+      if (updateData.githubAccessToken !== undefined) {
+        updateExpression.push('#token = :token');
+        expressionAttributeNames['#token'] = 'githubAccessToken';
+        expressionAttributeValues[':token'] = updateData.githubAccessToken;
+      }
+
+      if (updateData.username !== undefined) {
+        updateExpression.push('#username = :username');
+        expressionAttributeNames['#username'] = 'username';
+        expressionAttributeValues[':username'] = updateData.username;
+      }
+
+      if (updateData.email !== undefined) {
+        updateExpression.push('#email = :email');
+        expressionAttributeNames['#email'] = 'email';
+        expressionAttributeValues[':email'] = updateData.email;
+      }
+
+      if (updateData.avatar !== undefined) {
+        updateExpression.push('#avatar = :avatar');
+        expressionAttributeNames['#avatar'] = 'avatar';
+        expressionAttributeValues[':avatar'] = updateData.avatar;
+      }
+
+      // Toujours mettre à jour updatedAt
+      updateExpression.push('#updatedAt = :updatedAt');
+      expressionAttributeNames['#updatedAt'] = 'updatedAt';
+      expressionAttributeValues[':updatedAt'] = new Date().toISOString();
+
+      await this.dynamoDBClient.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: {
+            githubId: githubId.toString(),
+          },
+          UpdateExpression: `SET ${updateExpression.join(', ')}`,
+          ExpressionAttributeNames: expressionAttributeNames,
+          ExpressionAttributeValues: expressionAttributeValues,
+          ReturnValues: 'ALL_NEW',
+        }),
+      );
+
+      // Récupérer l'utilisateur mis à jour
+      return await this.findByGitHubId(githubId);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
       throw error;
     }
   }

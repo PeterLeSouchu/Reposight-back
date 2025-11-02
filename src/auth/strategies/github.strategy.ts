@@ -29,6 +29,7 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
       refreshToken: refreshToken,
       accessToken: accessToken,
     };
+    console.log('user github strategy', user);
 
     done(null, user);
   }
