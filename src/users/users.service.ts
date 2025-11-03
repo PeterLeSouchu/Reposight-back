@@ -6,6 +6,7 @@ import {
   GetCommand,
   PutCommand,
   UpdateCommand,
+  DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type {
   CreateUserDto,
@@ -187,6 +188,31 @@ export class UsersService {
       console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
       throw new InternalServerErrorException(
         "Erreur lors de la mise à jour de l'utilisateur",
+      );
+    }
+  }
+
+  /**
+   * Supprime un utilisateur de la BDD
+   * @param githubId - L'identifiant GitHub de l'utilisateur
+   */
+  async delete(githubId: string | number): Promise<void> {
+    try {
+      // Convertir en number pour DynamoDB
+      const githubIdNumber = Number(githubId);
+
+      await this.dynamoDBClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: {
+            github_id: githubIdNumber,
+          },
+        }),
+      );
+    } catch (error) {
+      console.error("Erreur lors de la suppression de l'utilisateur:", error);
+      throw new InternalServerErrorException(
+        "Erreur lors de la suppression de l'utilisateur",
       );
     }
   }

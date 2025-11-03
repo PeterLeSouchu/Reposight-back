@@ -65,10 +65,12 @@ export class AuthController {
     );
 
     // Refresh token
+    // En production: secure: true + sameSite: 'none' (HTTPS + cross-site)
+    // En dev: secure: false + sameSite: 'lax' (HTTP local, fonctionne même cross-origin en localhost)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: isProduction, // true seulement en production (HTTPS)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
@@ -90,10 +92,12 @@ export class AuthController {
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
 
+    // En production: secure: true + sameSite: 'none' (HTTPS + cross-site)
+    // En dev: secure: false + sameSite: 'lax' (HTTP local)
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: isProduction, // true seulement en production (HTTPS)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
@@ -106,8 +110,13 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   logout(@Res() res: Response): Response {
-    console.log('logoutssssss');
-    res.clearCookie('refresh_token');
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: isProduction, // true seulement en production (HTTPS)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
+    });
     return res.json({ message: 'Déconnexion réussie' });
   }
 }

@@ -12,6 +12,7 @@ import {
   QueryCommand,
   PutCommand,
   DeleteCommand,
+  BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { UsersService } from '../users/users.service';
 import type { GitHubRepo, StoredRepo, DynamoDBRepo } from './types/repos.types';
@@ -268,6 +269,61 @@ export class ReposService {
       console.error('Erreur lors de la suppression du repo:', error);
       throw new InternalServerErrorException(
         'Erreur lors de la suppression du repo',
+      );
+    }
+  }
+
+  /**
+   * Supprime tous les repos d'un utilisateur
+   * @param userId - Le githubId de l'utilisateur
+   */
+  async deleteAllReposByUserId(userId: number): Promise<void> {
+    try {
+      // 1. Récupérer tous les repos de l'utilisateur
+      const result = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.reposTableName,
+          KeyConditionExpression: 'user_id = :user_id',
+          ExpressionAttributeValues: {
+            ':user_id': userId,
+          },
+        }),
+      );
+
+      if (!result.Items || result.Items.length === 0) {
+        return; // Aucun repo à supprimer
+      }
+
+      // 2. Supprimer tous les repos en utilisant BatchWriteCommand
+      // BatchWriteCommand peut gérer jusqu'à 25 items à la fois
+      const items = result.Items as DynamoDBRepo[];
+      const batchSize = 25;
+
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+
+        await this.dynamoDBClient.send(
+          new BatchWriteCommand({
+            RequestItems: {
+              [this.reposTableName]: batch.map((item) => ({
+                DeleteRequest: {
+                  Key: {
+                    repo_id: item.repo_id,
+                    user_id: item.user_id,
+                  },
+                },
+              })),
+            },
+          }),
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Erreur lors de la suppression de tous les repos de l'utilisateur:",
+        error,
+      );
+      throw new InternalServerErrorException(
+        "Erreur lors de la suppression de tous les repos de l'utilisateur",
       );
     }
   }
