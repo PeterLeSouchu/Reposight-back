@@ -7,13 +7,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
-  // Configuration CORS pour permettre les cookies cross-domain
+
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
   });
 
-  // Appliquer le filtre globalement pour toutes les erreurs
   app.useGlobalFilters(new AllExceptionsFilter());
 
   await app.listen(process.env.PORT ?? 3001);

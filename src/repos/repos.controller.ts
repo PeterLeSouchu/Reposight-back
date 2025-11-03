@@ -16,10 +16,6 @@ import type { SelectReposDto } from './types/repos.types';
 export class ReposController {
   constructor(private reposService: ReposService) {}
 
-  /**
-   * Route pour récupérer les repos GitHub de l'utilisateur
-   * Retourne TOUS les repos GitHub (le filtrage peut être fait côté frontend)
-   */
   @Get('github')
   @UseGuards(JwtAuthGuard)
   async getGitHubRepos(@Req() req: RequestWithUser) {
@@ -31,9 +27,6 @@ export class ReposController {
     return repos;
   }
 
-  /**
-   * Route pour récupérer les repos sélectionnés par l'utilisateur (enregistrés en BDD)
-   */
   @Get()
   @UseGuards(JwtAuthGuard)
   async getSelectedRepos(@Req() req: RequestWithUser) {
@@ -44,10 +37,6 @@ export class ReposController {
     return repos;
   }
 
-  /**
-   * Route pour enregistrer les repos sélectionnés par l'utilisateur en BDD
-   * Body: { repos: [...] } - Les objets repos complets depuis GET /repos/github
-   */
   @Post('select')
   @UseGuards(JwtAuthGuard)
   async saveSelectedRepos(
@@ -56,13 +45,28 @@ export class ReposController {
   ) {
     const userId = req.user.githubId;
 
-    if (!body.repos || !Array.isArray(body.repos) || body.repos.length === 0) {
-      throw new BadRequestException('repos doit être un tableau non vide');
+    if (
+      !body.repoIds ||
+      !Array.isArray(body.repoIds) ||
+      body.repoIds.length === 0
+    ) {
+      throw new BadRequestException('repoIds doit être un tableau non vide');
+    }
+
+    // Convertir les IDs en numbers (au cas où ils arrivent comme strings)
+    const repoIds = body.repoIds
+      .map((id) => Number(id))
+      .filter((id) => !isNaN(id));
+
+    if (repoIds.length === 0) {
+      throw new BadRequestException(
+        'Les repoIds doivent être des nombres valides',
+      );
     }
 
     const savedRepos = await this.reposService.saveSelectedRepos(
       userId,
-      body.repos,
+      repoIds,
     );
 
     return {

@@ -21,10 +21,11 @@ export interface GitHubRepo {
 
 /**
  * Repo enregistré en BDD DynamoDB
+ * Note: repoId est stocké comme string dans DynamoDB (clé de partition)
  */
 export interface StoredRepo {
   userId: string;
-  repoId: number;
+  repoId: string; // Stocké comme string dans DynamoDB
   name: string;
   full_name: string;
   description: string;
@@ -43,5 +44,5 @@ export interface StoredRepo {
  * Body de la requête POST /repos/select
  */
 export interface SelectReposDto {
-  repos: GitHubRepo[];
+  repoIds: number[];
 }

@@ -15,11 +15,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Vérifier si l'erreur est une instance de HttpException
     if (exception instanceof HttpException) {
-      // Si c'est une HttpException, renvoyer l'erreur telle quelle
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
-      // Gérer le format de réponse (peut être un string ou un object)
       if (typeof exceptionResponse === 'string') {
         response.status(status).json({
           statusCode: status,
@@ -29,7 +27,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         response.status(status).json(exceptionResponse);
       }
     } else {
-      // Sinon, renvoyer une erreur serveur générique
+      // Sinon, renvoyer une erreur serveur générique pour eviter de renvoyer des erreurs sensibles au front.
       response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Erreur serveur interne',

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -39,11 +40,11 @@ export class ReposService {
   }
 
   /**
-   * Récupère les repos GitHub disponibles (non sélectionnés) pour l'utilisateur connecté
+   * Récupère tous les repos GitHub de l'utilisateur depuis l'API GitHub
    * @param userId - Le githubId de l'utilisateur
-   * @returns La liste des repos GitHub qui ne sont pas encore enregistrés en BDD
+   * @returns La liste de tous les repos GitHub de l'utilisateur
    */
-  async getAvailableGitHubRepos(userId: string): Promise<GitHubRepo[]> {
+  private async getAllGitHubRepos(userId: string): Promise<GitHubRepo[]> {
     try {
       // 1. Récupérer l'utilisateur pour avoir son token GitHub
       const user = await this.usersService.findByGitHubId(userId);
@@ -68,8 +69,26 @@ export class ReposService {
       }
 
       const allRepos = (await response.json()) as GitHubRepo[];
+      return allRepos;
+    } catch (error) {
+      console.error('Erreur dans getAllGitHubRepos:', error);
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des repos GitHub',
+      );
+    }
+  }
 
-      // 3. Récupérer les repos déjà sélectionnés en BDD
+  /**
+   * Récupère les repos GitHub disponibles (non sélectionnés) pour l'utilisateur connecté
+   * @param userId - Le githubId de l'utilisateur
+   * @returns La liste des repos GitHub qui ne sont pas encore enregistrés en BDD
+   */
+  async getAvailableGitHubRepos(userId: string): Promise<GitHubRepo[]> {
+    try {
+      // 1. Récupérer tous les repos GitHub
+      const allRepos = await this.getAllGitHubRepos(userId);
+
+      // 2. Récupérer les repos déjà sélectionnés en BDD
       const selectedReposResult = await this.dynamoDBClient.send(
         new QueryCommand({
           TableName: this.reposTableName,
@@ -81,9 +100,9 @@ export class ReposService {
       );
 
       const selectedRepos = (selectedReposResult.Items || []) as StoredRepo[];
-      const selectedRepoIds = selectedRepos.map((repo) => repo.repoId);
+      const selectedRepoIds = selectedRepos.map((repo) => Number(repo.repoId));
 
-      // 4. Filtrer pour ne garder que les repos non sélectionnés
+      // 3. Filtrer pour ne garder que les repos non sélectionnés
       const availableRepos = allRepos.filter(
         (repo) => !selectedRepoIds.includes(repo.id),
       );
@@ -129,24 +148,36 @@ export class ReposService {
   /**
    * Enregistre les repos sélectionnés en BDD pour l'utilisateur
    * @param userId - Le githubId de l'utilisateur
-   * @param repos - Les objets repos complets depuis GitHub (récupérés via GET /repos/github)
+   * @param repoIds - Les IDs des repos à enregistrer
    * @returns La liste des repos enregistrés
    */
   async saveSelectedRepos(
     userId: string,
-    repos: GitHubRepo[],
+    repoIds: number[],
   ): Promise<StoredRepo[]> {
     try {
-      if (!repos || repos.length === 0) {
-        throw new BadRequestException('Aucun repo fourni');
+      if (!repoIds || repoIds.length === 0) {
+        throw new BadRequestException('Aucun ID de repo fourni');
       }
 
-      // Enregistrer chaque repo dans DynamoDB directement (pas besoin de fetch, les données sont déjà là)
+      // 1. Récupérer tous les repos GitHub de l'utilisateur
+      const allRepos = await this.getAllGitHubRepos(userId);
+
+      // 2. Filtrer pour ne garder que les repos dont l'ID est dans la liste fournie
+      const reposToSave = allRepos.filter((repo) => repoIds.includes(repo.id));
+
+      if (reposToSave.length === 0) {
+        throw new NotFoundException(
+          'Aucun repo trouvé correspondant aux IDs fournis',
+        );
+      }
+
+      // 3. Enregistrer chaque repo dans DynamoDB
       const savedRepos: StoredRepo[] = [];
-      for (const repo of repos) {
+      for (const repo of reposToSave) {
         const repoItem: StoredRepo = {
           userId: userId,
-          repoId: repo.id,
+          repoId: repo.id.toString(), // Convertir en string pour DynamoDB
           name: repo.name,
           full_name: repo.full_name,
           description: repo.description || '',
@@ -174,6 +205,11 @@ export class ReposService {
       return savedRepos;
     } catch (error) {
       console.error("Erreur lors de l'enregistrement des repos:", error);
+      // Si c'est déjà une HttpException (BadRequest, NotFound, etc.), la relancer telle quelle
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      // Sinon, transformer en erreur serveur
       throw new InternalServerErrorException(
         "Erreur lors de l'enregistrement des repos",
       );
