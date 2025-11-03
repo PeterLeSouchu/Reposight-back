@@ -4,15 +4,17 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Req,
   UseGuards,
-  BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { RequestWithUser } from '../auth/types/auth.types';
 import { ReposService } from './repos.service';
-import type { SelectReposDto } from './types/repos.types';
+import { SelectReposDto } from './dto/select-repos.dto';
 
 @Controller('repos')
 export class ReposController {
@@ -41,34 +43,19 @@ export class ReposController {
 
   @Post('select')
   @UseGuards(JwtAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
   async saveSelectedRepos(
     @Req() req: RequestWithUser,
     @Body() body: SelectReposDto,
   ) {
     const userId = req.user.githubId;
 
-    if (
-      !body.repoIds ||
-      !Array.isArray(body.repoIds) ||
-      body.repoIds.length === 0
-    ) {
-      throw new BadRequestException('repoIds doit être un tableau non vide');
-    }
-
-    // Convertir les IDs en numbers (au cas où ils arrivent comme strings)
-    const repoIds = body.repoIds
-      .map((id) => Number(id))
-      .filter((id) => !isNaN(id));
-
-    if (repoIds.length === 0) {
-      throw new BadRequestException(
-        'Les repoIds doivent être des nombres valides',
-      );
-    }
+    // Pas besoin de validation manuelle : le pipe ValidationPipe s'en charge !
+    // body.repoIds est déjà un array de numbers grâce à @Type(() => Number)
 
     const savedRepos = await this.reposService.saveSelectedRepos(
       userId,
-      repoIds,
+      body.repoIds,
     );
 
     return {
@@ -81,17 +68,14 @@ export class ReposController {
   @UseGuards(JwtAuthGuard)
   async deleteRepo(
     @Req() req: RequestWithUser,
-    @Param('repoId') repoId: string,
+    @Param('repoId', ParseIntPipe) repoId: number,
   ) {
     const userId = req.user.githubId;
 
-    // Convertir repoId en number
-    const repoIdNumber = Number(repoId);
-    if (isNaN(repoIdNumber)) {
-      throw new BadRequestException('repoId doit être un nombre valide');
-    }
+    // ParseIntPipe s'occupe de convertir et valider repoId automatiquement !
+    // Pas besoin de Number() ni de vérifier isNaN
 
-    await this.reposService.deleteRepo(userId, repoIdNumber);
+    await this.reposService.deleteRepo(userId, repoId);
 
     return {
       message: 'Repo supprimé avec succès',

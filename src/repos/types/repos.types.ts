@@ -54,10 +54,3 @@ export interface DynamoDBRepo {
   created_at: string;
   updated_at: string;
 }
-
-/**
- * Body de la requête POST /repos/select
- */
-export interface SelectReposDto {
-  repoIds: number[];
-}
