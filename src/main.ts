@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
-import { AuthExceptionFilter } from './auth/exceptions/auth-exception.filter';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,8 +13,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Appliquer le filter globalement pour toutes les erreurs d'authentification
-  app.useGlobalFilters(new AuthExceptionFilter());
+  // Appliquer le filtre globalement pour toutes les erreurs
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   await app.listen(process.env.PORT ?? 3001);
   console.log('Server is running on port', process.env.PORT ?? 3001);

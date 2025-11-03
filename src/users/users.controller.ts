@@ -5,9 +5,10 @@ import {
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { RequestWithUser } from '../auth/types/auth.types';
+import type { UserProfileResponse } from './types/users.types';
 
 @Controller('user')
 export class UsersController {
@@ -15,10 +16,8 @@ export class UsersController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async getProfile(@Req() req: Request) {
-    // req.user est disponible grâce à JwtAuthGuard et contient le githubId
-    const user = req.user as any;
-    const githubId = user.githubId;
+  async getProfile(@Req() req: RequestWithUser): Promise<UserProfileResponse> {
+    const githubId = req.user.githubId;
 
     // Récupérer l'utilisateur complet depuis DynamoDB
     const dbUser = await this.usersService.findByGitHubId(githubId);

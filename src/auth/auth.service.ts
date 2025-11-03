@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import {
+  AuthenticatedUser,
+  JwtAccessPayload,
+  JwtRefreshPayload,
+} from './types/auth.types';
 
 @Injectable()
 export class AuthService {
@@ -9,20 +14,8 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async validateGitHubUser(profile: any) {
-    // Ici, vous pouvez ajouter la logique de stockage en BDD si nécessaire
-    return {
-      id: profile.id,
-      githubId: profile.id,
-      username: profile.username,
-      displayName: profile.displayName,
-      profileUrl: profile.profileUrl,
-      photos: profile.photos,
-    };
-  }
-
-  async generateAccessToken(user: any): Promise<string> {
-    const payload = {
+  async generateAccessToken(user: AuthenticatedUser): Promise<string> {
+    const payload: JwtAccessPayload = {
       id: user.id,
       githubId: user.githubId,
       username: user.username,
@@ -37,9 +30,9 @@ export class AuthService {
     });
   }
 
-  async generateRefreshToken(user: any): Promise<string> {
+  async generateRefreshToken(user: AuthenticatedUser): Promise<string> {
     // Refresh token : infos minimales nécessaires pour régénérer l'access token
-    const payload = {
+    const payload: JwtRefreshPayload = {
       id: user.id,
       githubId: user.githubId,
       username: user.username,
@@ -57,7 +50,9 @@ export class AuthService {
     });
   }
 
-  async generateTokens(user: any) {
+  async generateTokens(
+    user: AuthenticatedUser,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const accessToken = await this.generateAccessToken(user);
     const refreshToken = await this.generateRefreshToken(user);
     return { accessToken, refreshToken };

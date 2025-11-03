@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RefreshTokenGuard } from './refresh-token.guard';
 import { UsersService } from '../users/users.service';
+import type { AuthenticatedUser, RequestWithUser } from './types/auth.types';
 
 @Controller('auth')
 export class AuthController {
@@ -24,8 +25,11 @@ export class AuthController {
 
   @Get('github/callback')
   @UseGuards(AuthGuard('github'))
-  async githubCallback(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as any;
+  async githubCallback(
+    @Req() req: RequestWithUser,
+    @Res() res: Response,
+  ): Promise<void> {
+    const user = req.user;
 
     // Vérifier si l'utilisateur existe déjà en DynamoDB
     const existingUser = await this.usersService.findByGitHubId(
@@ -75,8 +79,11 @@ export class AuthController {
 
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)
-  async refreshToken(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as any;
+  async refreshToken(
+    @Req() req: RequestWithUser,
+    @Res() res: Response,
+  ): Promise<Response> {
+    const user = req.user;
 
     // Générer de nouveaux tokens avec les infos du refresh token
     const { accessToken, refreshToken: newRefreshToken } =
@@ -100,7 +107,7 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  logout(@Res() res: Response) {
+  logout(@Res() res: Response): Response {
     console.log('logoutssssss');
     res.clearCookie('refresh_token');
     return res.json({ message: 'Déconnexion réussie' });

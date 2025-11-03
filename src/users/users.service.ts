@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -7,6 +7,7 @@ import {
   PutCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
+import type { CreateUserDto, UpdateUserDto, User } from './types/users.types';
 
 @Injectable()
 export class UsersService {
@@ -34,7 +35,7 @@ export class UsersService {
    * @param githubId - L'identifiant GitHub de l'utilisateur
    * @returns L'utilisateur s'il existe, null sinon
    */
-  async findByGitHubId(githubId: string | number): Promise<any | null> {
+  async findByGitHubId(githubId: string | number): Promise<User | null> {
     try {
       const result = await this.dynamoDBClient.send(
         new GetCommand({
@@ -45,10 +46,12 @@ export class UsersService {
         }),
       );
 
-      return result.Item || null;
+      return result.Item ? (result.Item as User) : null;
     } catch (error) {
       console.error("Erreur lors de la recherche de l'utilisateur:", error);
-      throw error;
+      throw new InternalServerErrorException(
+        "Erreur lors de la recherche de l'utilisateur",
+      );
     }
   }
 
@@ -57,15 +60,9 @@ export class UsersService {
    * @param userData - Les données de l'utilisateur à créer
    * @returns L'utilisateur créé
    */
-  async create(userData: {
-    githubId: string | number;
-    username: string;
-    email: string;
-    avatar: string;
-    githubAccessToken?: string;
-  }): Promise<any> {
+  async create(userData: CreateUserDto): Promise<User> {
     try {
-      const user = {
+      const user: User = {
         githubId: userData.githubId.toString(),
         username: userData.username,
         email: userData.email,
@@ -86,7 +83,9 @@ export class UsersService {
       return user;
     } catch (error) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
-      throw error;
+      throw new InternalServerErrorException(
+        "Erreur lors de la création de l'utilisateur",
+      );
     }
   }
 
@@ -98,17 +97,12 @@ export class UsersService {
    */
   async update(
     githubId: string | number,
-    updateData: {
-      githubAccessToken?: string;
-      username?: string;
-      email?: string;
-      avatar?: string;
-    },
-  ): Promise<any> {
+    updateData: UpdateUserDto,
+  ): Promise<User> {
     try {
       const updateExpression: string[] = [];
-      const expressionAttributeValues: any = {};
-      const expressionAttributeNames: any = {};
+      const expressionAttributeValues: Record<string, unknown> = {};
+      const expressionAttributeNames: Record<string, string> = {};
 
       if (updateData.githubAccessToken !== undefined) {
         updateExpression.push('#token = :token');
@@ -139,7 +133,7 @@ export class UsersService {
       expressionAttributeNames['#updatedAt'] = 'updatedAt';
       expressionAttributeValues[':updatedAt'] = new Date().toISOString();
 
-      await this.dynamoDBClient.send(
+      const result = await this.dynamoDBClient.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: {
@@ -152,11 +146,13 @@ export class UsersService {
         }),
       );
 
-      // Récupérer l'utilisateur mis à jour
-      return await this.findByGitHubId(githubId);
+      // Retourner l'utilisateur mis à jour depuis le résultat
+      return result.Attributes as User;
     } catch (error) {
       console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
-      throw error;
+      throw new InternalServerErrorException(
+        "Erreur lors de la mise à jour de l'utilisateur",
+      );
     }
   }
 }
