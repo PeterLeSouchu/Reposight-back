@@ -7,7 +7,12 @@ import {
   PutCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import type { CreateUserDto, UpdateUserDto, User } from './types/users.types';
+import type {
+  CreateUserDto,
+  UpdateUserDto,
+  User,
+  DynamoDBUser,
+} from './types/users.types';
 
 @Injectable()
 export class UsersService {
@@ -37,16 +42,27 @@ export class UsersService {
    */
   async findByGitHubId(githubId: string | number): Promise<User | null> {
     try {
+      // Convertir en number pour DynamoDB
+      const githubIdNumber = Number(githubId);
+
       const result = await this.dynamoDBClient.send(
         new GetCommand({
           TableName: this.tableName,
           Key: {
-            githubId: githubId.toString(), // Convertir en string pour être sûr
+            github_id: githubIdNumber,
           },
         }),
       );
 
-      return result.Item ? (result.Item as User) : null;
+      // Mapper les données DynamoDB (github_id -> githubId)
+      if (result.Item) {
+        const item = result.Item as DynamoDBUser;
+        return {
+          ...item,
+          githubId: item.github_id,
+        } as User;
+      }
+      return null;
     } catch (error) {
       console.error("Erreur lors de la recherche de l'utilisateur:", error);
       throw new InternalServerErrorException(
@@ -62,8 +78,11 @@ export class UsersService {
    */
   async create(userData: CreateUserDto): Promise<User> {
     try {
-      const user: User = {
-        githubId: userData.githubId.toString(),
+      // Convertir githubId en number pour DynamoDB
+      const githubIdNumber = Number(userData.githubId);
+
+      const user: DynamoDBUser = {
+        github_id: githubIdNumber, // Clé de partition DynamoDB (github_id)
         username: userData.username,
         email: userData.email,
         avatar: userData.avatar,
@@ -80,7 +99,11 @@ export class UsersService {
         }),
       );
 
-      return user;
+      // Mapper pour le retour (github_id -> githubId)
+      return {
+        ...user,
+        githubId: user.github_id,
+      } as User;
     } catch (error) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
       throw new InternalServerErrorException(
@@ -133,11 +156,14 @@ export class UsersService {
       expressionAttributeNames['#updatedAt'] = 'updatedAt';
       expressionAttributeValues[':updatedAt'] = new Date().toISOString();
 
+      // Convertir en number pour DynamoDB
+      const githubIdNumber = Number(githubId);
+
       const result = await this.dynamoDBClient.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: {
-            githubId: githubId.toString(),
+            github_id: githubIdNumber,
           },
           UpdateExpression: `SET ${updateExpression.join(', ')}`,
           ExpressionAttributeNames: expressionAttributeNames,
@@ -146,8 +172,17 @@ export class UsersService {
         }),
       );
 
-      // Retourner l'utilisateur mis à jour depuis le résultat
-      return result.Attributes as User;
+      // Mapper les données DynamoDB (github_id -> githubId)
+      if (result.Attributes) {
+        const item = result.Attributes as DynamoDBUser;
+        return {
+          ...item,
+          githubId: item.github_id,
+        } as User;
+      }
+      throw new InternalServerErrorException(
+        'Aucun attribut retourné lors de la mise à jour',
+      );
     } catch (error) {
       console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
       throw new InternalServerErrorException(

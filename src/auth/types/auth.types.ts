@@ -8,7 +8,7 @@ import type { Request } from 'express';
  * Profil GitHub retourné par Passport
  */
 export interface GitHubProfile {
-  id: string;
+  id: string | number; // L'API GitHub renvoie number, mais Passport peut convertir
   username: string;
   displayName?: string;
   profileUrl?: string;
@@ -34,8 +34,8 @@ export type PassportDoneCallback = (
  * Utilisateur authentifié retourné par les stratégies
  */
 export interface AuthenticatedUser {
-  id: string;
-  githubId: string;
+  id: number;
+  githubId: number;
   username: string;
   avatar: string;
   email: string;
@@ -47,8 +47,8 @@ export interface AuthenticatedUser {
  * Payload JWT pour les access tokens
  */
 export interface JwtAccessPayload {
-  id: string;
-  githubId: string;
+  id: number;
+  githubId: number;
   username: string;
   avatar: string;
   email: string;
@@ -59,8 +59,8 @@ export interface JwtAccessPayload {
  * Payload JWT pour les refresh tokens
  */
 export interface JwtRefreshPayload {
-  id: string;
-  githubId: string;
+  id: number;
+  githubId: number;
   username: string;
   avatar: string;
   email: string;

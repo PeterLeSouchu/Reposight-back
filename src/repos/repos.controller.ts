@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -72,6 +74,27 @@ export class ReposController {
     return {
       message: `${savedRepos.length} repo(s) enregistré(s) avec succès`,
       repos: savedRepos,
+    };
+  }
+
+  @Delete(':repoId')
+  @UseGuards(JwtAuthGuard)
+  async deleteRepo(
+    @Req() req: RequestWithUser,
+    @Param('repoId') repoId: string,
+  ) {
+    const userId = req.user.githubId;
+
+    // Convertir repoId en number
+    const repoIdNumber = Number(repoId);
+    if (isNaN(repoIdNumber)) {
+      throw new BadRequestException('repoId doit être un nombre valide');
+    }
+
+    await this.reposService.deleteRepo(userId, repoIdNumber);
+
+    return {
+      message: 'Repo supprimé avec succès',
     };
   }
 }

@@ -6,7 +6,7 @@
  * Utilisateur enregistré en BDD DynamoDB
  */
 export interface User {
-  githubId: string;
+  githubId: number; // Stocké comme number dans DynamoDB
   username: string;
   email: string;
   avatar: string;
@@ -35,6 +35,20 @@ export interface UpdateUserDto {
   username?: string;
   email?: string;
   avatar?: string;
+}
+
+/**
+ * Utilisateur tel qu'il est stocké dans DynamoDB (avec les noms de clés réels)
+ */
+export interface DynamoDBUser {
+  github_id: number; // Clé de partition
+  username: string;
+  email: string;
+  avatar: string;
+  githubAccessToken: string;
+  favorites: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

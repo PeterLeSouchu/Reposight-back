@@ -25,9 +25,13 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
     profile: GitHubProfile,
     done: PassportDoneCallback,
   ): Promise<void> {
+    // Convertir profile.id en number (l'API GitHub renvoie number mais Passport peut le convertir en string)
+    const githubId =
+      typeof profile.id === 'string' ? Number(profile.id) : profile.id;
+
     const user: AuthenticatedUser = {
-      id: profile.id,
-      githubId: profile.id,
+      id: githubId,
+      githubId: githubId,
       username: profile.username,
       avatar: profile.photos?.[0]?.value || profile._json?.avatar_url || '',
       email: profile.emails?.[0]?.value || profile._json?.email || '',
