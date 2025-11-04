@@ -54,8 +54,7 @@ export class AuthController {
     }
 
     // Générer les tokens (utilise les données du user GitHub)
-    const { accessToken, refreshToken } =
-      await this.authService.generateTokens(user);
+    const { refreshToken } = await this.authService.generateTokens(user);
 
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';

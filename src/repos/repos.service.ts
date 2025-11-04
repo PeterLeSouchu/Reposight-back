@@ -3,7 +3,6 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
-  HttpException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -15,7 +14,7 @@ import {
   BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { UsersService } from '../users/users.service';
-import type { GitHubRepo, StoredRepo, DynamoDBRepo } from './types/repos.types';
+import type { GitHubRepo, DynamoDBRepo } from './types/repos.types';
 
 @Injectable()
 export class ReposService {
@@ -26,7 +25,6 @@ export class ReposService {
     private configService: ConfigService,
     private usersService: UsersService,
   ) {
-    // Configuration du client DynamoDB pour la table Repos
     const client = new DynamoDBClient({
       region: this.configService.get<string>('AWS_REGION'),
       credentials: {
@@ -41,14 +39,8 @@ export class ReposService {
       this.configService.get<string>('DYNAMO_REPOS_TABLE') || 'Repos';
   }
 
-  /**
-   * Récupère tous les repos GitHub de l'utilisateur depuis l'API GitHub
-   * @param userId - Le githubId de l'utilisateur
-   * @returns La liste de tous les repos GitHub de l'utilisateur
-   */
   private async getAllGitHubRepos(userId: number): Promise<GitHubRepo[]> {
     try {
-      // 1. Récupérer l'utilisateur pour avoir son token GitHub
       const user = await this.usersService.findByGitHubId(userId);
       if (!user || !user.githubAccessToken) {
         throw new NotFoundException(
@@ -56,7 +48,6 @@ export class ReposService {
         );
       }
 
-      // 2. Appeler l'API GitHub pour récupérer tous les repos
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
           Authorization: `Bearer ${user.githubAccessToken}`,
@@ -80,17 +71,11 @@ export class ReposService {
     }
   }
 
-  /**
-   * Récupère les repos GitHub disponibles (non sélectionnés) pour l'utilisateur connecté
-   * @param userId - Le githubId de l'utilisateur
-   * @returns La liste des repos GitHub qui ne sont pas encore enregistrés en BDD
-   */
   async getAvailableGitHubRepos(userId: number): Promise<GitHubRepo[]> {
     try {
       // 1. Récupérer tous les repos GitHub
       const allRepos = await this.getAllGitHubRepos(userId);
 
-      // 2. Récupérer les repos déjà sélectionnés en BDD
       const selectedReposResult = await this.dynamoDBClient.send(
         new QueryCommand({
           TableName: this.reposTableName,
@@ -101,19 +86,17 @@ export class ReposService {
         }),
       );
 
-      // Mapper les données DynamoDB (repo_id -> id) et exclure user_id (info interne)
       const selectedRepos = (selectedReposResult.Items || []).map(
         (item: DynamoDBRepo) => {
           const { user_id, repo_id, ...rest } = item;
           return {
             ...rest,
             id: repo_id,
-          } as StoredRepo;
+          } as GitHubRepo;
         },
       );
       const selectedRepoIds = selectedRepos.map((repo) => repo.id);
 
-      // 3. Filtrer pour ne garder que les repos non sélectionnés
       const availableRepos = allRepos.filter(
         (repo) => !selectedRepoIds.includes(repo.id),
       );
@@ -127,12 +110,7 @@ export class ReposService {
     }
   }
 
-  /**
-   * Récupère les repos sélectionnés et enregistrés en BDD pour l'utilisateur
-   * @param userId - Le githubId de l'utilisateur
-   * @returns La liste des repos enregistrés en BDD
-   */
-  async getSelectedRepos(userId: number): Promise<StoredRepo[]> {
+  async getSelectedRepos(userId: number): Promise<GitHubRepo[]> {
     try {
       const result = await this.dynamoDBClient.send(
         new QueryCommand({
@@ -144,13 +122,12 @@ export class ReposService {
         }),
       );
 
-      // Mapper les données DynamoDB (repo_id -> id) et exclure user_id (info interne)
       return (result.Items || []).map((item: DynamoDBRepo) => {
         const { user_id, repo_id, ...rest } = item;
         return {
           ...rest,
           id: repo_id,
-        } as StoredRepo;
+        } as GitHubRepo;
       });
     } catch (error) {
       console.error(
@@ -163,25 +140,135 @@ export class ReposService {
     }
   }
 
-  /**
-   * Enregistre les repos sélectionnés en BDD pour l'utilisateur
-   * @param userId - Le githubId de l'utilisateur
-   * @param repoIds - Les IDs des repos à enregistrer
-   * @returns La liste des repos enregistrés
-   */
+  private hasRepoChanged(
+    storedRepo: GitHubRepo,
+    githubRepo: GitHubRepo,
+  ): boolean {
+    return (
+      storedRepo.name !== githubRepo.name ||
+      storedRepo.full_name !== githubRepo.full_name ||
+      (storedRepo.description || '') !== (githubRepo.description || '') ||
+      storedRepo.stargazers_count !== githubRepo.stargazers_count ||
+      storedRepo.forks_count !== githubRepo.forks_count ||
+      storedRepo.language !== (githubRepo.language || null) ||
+      storedRepo.pushed_at !== githubRepo.pushed_at ||
+      storedRepo.default_branch !== githubRepo.default_branch ||
+      storedRepo.private !== githubRepo.private ||
+      storedRepo.html_url !== githubRepo.html_url
+    );
+  }
+
+  async syncRepos(userId: number): Promise<string[]> {
+    try {
+      const githubRepos = await this.getAllGitHubRepos(userId);
+      const githubRepoIds = new Set(githubRepos.map((repo) => repo.id));
+      const githubReposMap = new Map(
+        githubRepos.map((repo) => [repo.id, repo]),
+      );
+
+      const result = await this.dynamoDBClient.send(
+        new QueryCommand({
+          TableName: this.reposTableName,
+          KeyConditionExpression: 'user_id = :user_id',
+          ExpressionAttributeValues: {
+            ':user_id': userId,
+          },
+        }),
+      );
+
+      const storedRepos = (result.Items || []).map((item: DynamoDBRepo) => {
+        const { user_id, repo_id, ...rest } = item;
+        return {
+          ...rest,
+          id: repo_id,
+        } as GitHubRepo;
+      });
+
+      const reposDeletedFromGithub: string[] = [];
+      const reposToDelete: DynamoDBRepo[] = [];
+
+      for (const storedRepo of storedRepos) {
+        if (!githubRepoIds.has(storedRepo.id)) {
+          reposDeletedFromGithub.push(storedRepo.name);
+          reposToDelete.push({
+            repo_id: storedRepo.id,
+            user_id: userId,
+          } as DynamoDBRepo);
+        }
+      }
+
+      if (reposToDelete.length > 0) {
+        const batchSize = 25;
+        for (let i = 0; i < reposToDelete.length; i += batchSize) {
+          const batch = reposToDelete.slice(i, i + batchSize);
+          await this.dynamoDBClient.send(
+            new BatchWriteCommand({
+              RequestItems: {
+                [this.reposTableName]: batch.map((item) => ({
+                  DeleteRequest: {
+                    Key: {
+                      repo_id: item.repo_id,
+                      user_id: item.user_id,
+                    },
+                  },
+                })),
+              },
+            }),
+          );
+        }
+      }
+
+      for (const storedRepo of storedRepos) {
+        const githubRepo = githubReposMap.get(storedRepo.id);
+        if (githubRepo && this.hasRepoChanged(storedRepo, githubRepo)) {
+          const repoItem: DynamoDBRepo = {
+            repo_id: githubRepo.id,
+            user_id: userId,
+            name: githubRepo.name,
+            full_name: githubRepo.full_name,
+            description: githubRepo.description || '',
+            html_url: githubRepo.html_url,
+            private: githubRepo.private,
+            language: githubRepo.language || null,
+            stargazers_count: githubRepo.stargazers_count || 0,
+            forks_count: githubRepo.forks_count || 0,
+            default_branch: githubRepo.default_branch || 'main',
+            pushed_at: githubRepo.pushed_at || new Date().toISOString(),
+
+            selected_at: storedRepo.selected_at || new Date().toISOString(),
+            created_at: storedRepo.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          await this.dynamoDBClient.send(
+            new PutCommand({
+              TableName: this.reposTableName,
+              Item: repoItem,
+            }),
+          );
+        }
+      }
+
+      return reposDeletedFromGithub;
+    } catch (error) {
+      console.error('Erreur lors de la synchronisation des repos:', error);
+      throw new InternalServerErrorException(
+        'Erreur lors de la synchronisation des repos',
+      );
+    }
+  }
+
   async saveSelectedRepos(
     userId: number,
     repoIds: number[],
-  ): Promise<StoredRepo[]> {
+  ): Promise<GitHubRepo[]> {
     try {
       if (!repoIds || repoIds.length === 0) {
         throw new BadRequestException('Aucun ID de repo fourni');
       }
 
-      // 1. Récupérer tous les repos GitHub de l'utilisateur
       const allRepos = await this.getAllGitHubRepos(userId);
 
-      // 2. Filtrer pour ne garder que les repos dont l'ID est dans la liste fournie
       const reposToSave = allRepos.filter((repo) => repoIds.includes(repo.id));
 
       if (reposToSave.length === 0) {
@@ -190,7 +277,6 @@ export class ReposService {
         );
       }
 
-      // 3. Enregistrer chaque repo dans DynamoDB
       const savedRepos: DynamoDBRepo[] = [];
       for (const repo of reposToSave) {
         if (!repo.id) {
@@ -200,8 +286,8 @@ export class ReposService {
         }
 
         const repoItem: DynamoDBRepo = {
-          repo_id: repo.id, // Clé de partition DynamoDB (repo_id)
-          user_id: userId, // Clé de partition DynamoDB (user_id)
+          repo_id: repo.id,
+          user_id: userId,
           name: repo.name,
           full_name: repo.full_name,
           description: repo.description || '',
@@ -211,8 +297,8 @@ export class ReposService {
           stargazers_count: repo.stargazers_count || 0,
           forks_count: repo.forks_count || 0,
           default_branch: repo.default_branch || 'main',
-          pushed_at: repo.pushed_at || new Date().toISOString(), // Date du dernier push
-          // Champs de gestion BDD
+          pushed_at: repo.pushed_at || new Date().toISOString(),
+
           selected_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -228,32 +314,22 @@ export class ReposService {
         savedRepos.push(repoItem);
       }
 
-      // Retourner avec id au lieu de repo_id (mapper DynamoDB -> Repo) et exclure user_id
       return savedRepos.map((item: DynamoDBRepo) => {
         const { user_id, repo_id, ...rest } = item;
         return {
           ...rest,
           id: repo_id,
-        } as StoredRepo;
+        } as GitHubRepo;
       });
     } catch (error) {
       console.error("Erreur lors de l'enregistrement des repos:", error);
-      // Si c'est déjà une HttpException (BadRequest, NotFound, etc.), la relancer telle quelle
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      // Sinon, transformer en erreur serveur
+
       throw new InternalServerErrorException(
         "Erreur lors de l'enregistrement des repos",
       );
     }
   }
 
-  /**
-   * Supprime un repo de la BDD pour l'utilisateur
-   * @param userId - Le githubId de l'utilisateur
-   * @param repoId - L'ID du repo à supprimer
-   */
   async deleteRepo(userId: number, repoId: number): Promise<void> {
     try {
       await this.dynamoDBClient.send(
@@ -273,13 +349,8 @@ export class ReposService {
     }
   }
 
-  /**
-   * Supprime tous les repos d'un utilisateur
-   * @param userId - Le githubId de l'utilisateur
-   */
   async deleteAllReposByUserId(userId: number): Promise<void> {
     try {
-      // 1. Récupérer tous les repos de l'utilisateur
       const result = await this.dynamoDBClient.send(
         new QueryCommand({
           TableName: this.reposTableName,
@@ -291,10 +362,9 @@ export class ReposService {
       );
 
       if (!result.Items || result.Items.length === 0) {
-        return; // Aucun repo à supprimer
+        return;
       }
 
-      // 2. Supprimer tous les repos en utilisant BatchWriteCommand
       // BatchWriteCommand peut gérer jusqu'à 25 items à la fois
       const items = result.Items as DynamoDBRepo[];
       const batchSize = 25;

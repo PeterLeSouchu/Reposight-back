@@ -21,7 +21,6 @@ export class UsersService {
   private tableName: string;
 
   constructor(private configService: ConfigService) {
-    // Configuration du client DynamoDB
     const client = new DynamoDBClient({
       region: this.configService.get<string>('AWS_REGION'),
       credentials: {
@@ -36,14 +35,8 @@ export class UsersService {
       this.configService.get<string>('DYNAMO_USERS_TABLE') || 'Users';
   }
 
-  /**
-   * Trouve un utilisateur par son githubId
-   * @param githubId - L'identifiant GitHub de l'utilisateur
-   * @returns L'utilisateur s'il existe, null sinon
-   */
   async findByGitHubId(githubId: string | number): Promise<User | null> {
     try {
-      // Convertir en number pour DynamoDB
       const githubIdNumber = Number(githubId);
 
       const result = await this.dynamoDBClient.send(
@@ -55,7 +48,6 @@ export class UsersService {
         }),
       );
 
-      // Mapper les données DynamoDB (github_id -> githubId)
       if (result.Item) {
         const item = result.Item as DynamoDBUser;
         return {
@@ -72,18 +64,12 @@ export class UsersService {
     }
   }
 
-  /**
-   * Crée un nouvel utilisateur en DynamoDB
-   * @param userData - Les données de l'utilisateur à créer
-   * @returns L'utilisateur créé
-   */
   async create(userData: CreateUserDto): Promise<User> {
     try {
-      // Convertir githubId en number pour DynamoDB
       const githubIdNumber = Number(userData.githubId);
 
       const user: DynamoDBUser = {
-        github_id: githubIdNumber, // Clé de partition DynamoDB (github_id)
+        github_id: githubIdNumber,
         username: userData.username,
         email: userData.email,
         avatar: userData.avatar,
@@ -100,7 +86,6 @@ export class UsersService {
         }),
       );
 
-      // Mapper pour le retour (github_id -> githubId)
       return {
         ...user,
         githubId: user.github_id,
@@ -113,12 +98,6 @@ export class UsersService {
     }
   }
 
-  /**
-   * Met à jour un utilisateur existant en DynamoDB
-   * @param githubId - L'identifiant GitHub de l'utilisateur
-   * @param updateData - Les données à mettre à jour
-   * @returns L'utilisateur mis à jour
-   */
   async update(
     githubId: string | number,
     updateData: UpdateUserDto,
@@ -192,13 +171,8 @@ export class UsersService {
     }
   }
 
-  /**
-   * Supprime un utilisateur de la BDD
-   * @param githubId - L'identifiant GitHub de l'utilisateur
-   */
   async delete(githubId: string | number): Promise<void> {
     try {
-      // Convertir en number pour DynamoDB
       const githubIdNumber = Number(githubId);
 
       await this.dynamoDBClient.send(

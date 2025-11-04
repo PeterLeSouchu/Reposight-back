@@ -4,9 +4,9 @@ import { ReposController } from './repos.controller';
 import { ReposService } from './repos.service';
 
 @Module({
-  imports: [forwardRef(() => UsersModule)], // Important : pour utiliser UsersService (forwardRef pour éviter dépendance circulaire)
+  imports: [forwardRef(() => UsersModule)],
   controllers: [ReposController],
   providers: [ReposService],
-  exports: [ReposService], // Au cas où d'autres modules en auraient besoin
+  exports: [ReposService],
 })
 export class ReposModule {}

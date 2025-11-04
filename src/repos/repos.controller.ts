@@ -25,7 +25,6 @@ export class ReposController {
   async getGitHubRepos(@Req() req: RequestWithUser) {
     const userId = req.user.githubId;
 
-    // Récupérer les repos GitHub disponibles (non sélectionnés)
     const repos = await this.reposService.getAvailableGitHubRepos(userId);
 
     return repos;
@@ -36,9 +35,14 @@ export class ReposController {
   async getSelectedRepos(@Req() req: RequestWithUser) {
     const userId = req.user.githubId;
 
+    const reposDeletedFromGithub = await this.reposService.syncRepos(userId);
+
     const repos = await this.reposService.getSelectedRepos(userId);
 
-    return repos;
+    return {
+      repos,
+      reposDeletedFromGithub,
+    };
   }
 
   @Post('select')
@@ -49,9 +53,6 @@ export class ReposController {
     @Body() body: SelectReposDto,
   ) {
     const userId = req.user.githubId;
-
-    // Pas besoin de validation manuelle : le pipe ValidationPipe s'en charge !
-    // body.repoIds est déjà un array de numbers grâce à @Type(() => Number)
 
     const savedRepos = await this.reposService.saveSelectedRepos(
       userId,
@@ -71,9 +72,6 @@ export class ReposController {
     @Param('repoId', ParseIntPipe) repoId: number,
   ) {
     const userId = req.user.githubId;
-
-    // ParseIntPipe s'occupe de convertir et valider repoId automatiquement !
-    // Pas besoin de Number() ni de vérifier isNaN
 
     await this.reposService.deleteRepo(userId, repoId);
 

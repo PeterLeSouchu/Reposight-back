@@ -28,14 +28,12 @@ export class UsersController {
   async getProfile(@Req() req: RequestWithUser): Promise<UserProfileResponse> {
     const githubId = req.user.githubId;
 
-    // Récupérer l'utilisateur complet depuis DynamoDB
     const dbUser = await this.usersService.findByGitHubId(githubId);
 
     if (!dbUser) {
       throw new NotFoundException('Utilisateur non trouvé en base de données');
     }
 
-    // Retourner uniquement les champs demandés
     return {
       avatar: dbUser.avatar,
       username: dbUser.username,
@@ -51,25 +49,21 @@ export class UsersController {
   ): Promise<Response> {
     const githubId = req.user.githubId;
 
-    // 1. Vérifier que l'utilisateur existe
     const dbUser = await this.usersService.findByGitHubId(githubId);
     if (!dbUser) {
       throw new NotFoundException('Utilisateur non trouvé en base de données');
     }
 
-    // 2. Supprimer tous les repos de l'utilisateur
     await this.reposService.deleteAllReposByUserId(githubId);
 
-    // 3. Supprimer l'utilisateur
     await this.usersService.delete(githubId);
 
-    // 4. Nettoyer le cookie refresh_token (avec les mêmes options que lors de la création)
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
     res.clearCookie('refresh_token', {
       httpOnly: true,
-      secure: isProduction, // true seulement en production (HTTPS)
-      sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
     });
 
     return res.json({
