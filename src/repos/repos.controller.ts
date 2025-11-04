@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { RequestWithUser } from '../auth/types/auth.types';
 import { ReposService } from './repos.service';
 import { SelectReposDto } from './dto/select-repos.dto';
+import { RepoOwnershipGuard } from './repo-ownership.guard';
 
 @Controller('repos')
 export class ReposController {
@@ -66,7 +67,7 @@ export class ReposController {
   }
 
   @Delete(':repoId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RepoOwnershipGuard)
   async deleteRepo(
     @Req() req: RequestWithUser,
     @Param('repoId', ParseIntPipe) repoId: number,

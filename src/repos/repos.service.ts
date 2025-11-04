@@ -39,6 +39,19 @@ export class ReposService {
       this.configService.get<string>('DYNAMO_REPOS_TABLE') || 'Repos';
   }
 
+  async hasRepoAccess(userId: number, repoId: number): Promise<boolean> {
+    try {
+      const userRepos = await this.getAllGitHubRepos(userId);
+      return userRepos.some((repo) => repo.id === repoId);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la vérification de l'accès au repo:",
+        error,
+      );
+      return false;
+    }
+  }
+
   private async getAllGitHubRepos(userId: number): Promise<GitHubRepo[]> {
     try {
       const user = await this.usersService.findByGitHubId(userId);
