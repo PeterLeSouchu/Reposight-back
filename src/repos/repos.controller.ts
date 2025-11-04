@@ -8,8 +8,6 @@ import {
   Post,
   Req,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { RequestWithUser } from '../auth/types/auth.types';
@@ -47,7 +45,6 @@ export class ReposController {
 
   @Post('select')
   @UseGuards(JwtAuthGuard)
-  @UsePipes(new ValidationPipe({ transform: true }))
   async saveSelectedRepos(
     @Req() req: RequestWithUser,
     @Body() body: SelectReposDto,
