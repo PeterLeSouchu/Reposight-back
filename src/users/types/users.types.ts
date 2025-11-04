@@ -12,6 +12,7 @@ export interface User {
   avatar: string;
   githubAccessToken: string;
   favorites: string[];
+  isNewUser: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +36,7 @@ export interface UpdateUserDto {
   username?: string;
   email?: string;
   avatar?: string;
+  isNewUser?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export interface DynamoDBUser {
   avatar: string;
   githubAccessToken: string;
   favorites: string[];
+  isNewUser: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,4 +61,5 @@ export interface UserProfileResponse {
   avatar: string;
   username: string;
   email: string;
+  isNewUser: boolean;
 }

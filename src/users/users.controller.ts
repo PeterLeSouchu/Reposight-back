@@ -2,6 +2,7 @@ import {
   Controller,
   Delete,
   Get,
+  Patch,
   Req,
   Res,
   UseGuards,
@@ -38,6 +39,26 @@ export class UsersController {
       avatar: dbUser.avatar,
       username: dbUser.username,
       email: dbUser.email,
+      isNewUser: dbUser.isNewUser ?? false,
+    };
+  }
+
+  @Patch('steps')
+  @UseGuards(JwtAuthGuard)
+  async completeSteps(@Req() req: RequestWithUser) {
+    const githubId = req.user.githubId;
+
+    const dbUser = await this.usersService.findByGitHubId(githubId);
+    if (!dbUser) {
+      throw new NotFoundException('Utilisateur non trouvé en base de données');
+    }
+
+    await this.usersService.update(githubId, {
+      isNewUser: false,
+    });
+
+    return {
+      message: 'Stepper terminé avec succès',
     };
   }
 

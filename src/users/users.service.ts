@@ -53,6 +53,7 @@ export class UsersService {
         return {
           ...item,
           githubId: item.github_id,
+          isNewUser: item.isNewUser ?? false,
         } as User;
       }
       return null;
@@ -75,6 +76,7 @@ export class UsersService {
         avatar: userData.avatar,
         githubAccessToken: userData.githubAccessToken || '',
         favorites: [],
+        isNewUser: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -131,6 +133,12 @@ export class UsersService {
         expressionAttributeValues[':avatar'] = updateData.avatar;
       }
 
+      if (updateData.isNewUser !== undefined) {
+        updateExpression.push('#isNewUser = :isNewUser');
+        expressionAttributeNames['#isNewUser'] = 'isNewUser';
+        expressionAttributeValues[':isNewUser'] = updateData.isNewUser;
+      }
+
       // Toujours mettre à jour updatedAt
       updateExpression.push('#updatedAt = :updatedAt');
       expressionAttributeNames['#updatedAt'] = 'updatedAt';
@@ -158,6 +166,7 @@ export class UsersService {
         return {
           ...item,
           githubId: item.github_id,
+          isNewUser: item.isNewUser ?? false,
         } as User;
       }
       throw new InternalServerErrorException(
