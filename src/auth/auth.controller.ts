@@ -73,7 +73,7 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
-    return res.redirect(`${frontendUrl}/dashboard`);
+    return res.redirect(`${frontendUrl}/repositories`);
   }
 
   @Post('refresh')
