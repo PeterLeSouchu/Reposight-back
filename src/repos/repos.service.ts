@@ -19,6 +19,7 @@ import type {
   RepoDashboard,
   RepoInfo,
   RecentActivity,
+  RecentActivityItem,
   DailyStats,
   WeeklyComparison,
   Contributor,
@@ -558,6 +559,7 @@ export class ReposService {
   private extractRepoInfo(
     repo: GraphQLResponse['data']['repository'],
     contributorsCount: number,
+    repoUrl: string,
   ): RepoInfo {
     // Le dernier commit est le premier de l'historique (trié par date décroissante)
     const commits = repo.defaultBranchRef?.target?.history?.nodes || [];
@@ -577,6 +579,7 @@ export class ReposService {
     return {
       name: repo.name,
       description: repo.description,
+      url: repoUrl,
       languages: languagesWithPercentage,
       isFork: repo.isFork,
       sizeMb: Math.round((repo.diskUsage / 1024 / 1024) * 100) / 100,
@@ -601,27 +604,27 @@ export class ReposService {
   }
 
   /**
-   * Extrait les activités récentes (Partie 2) - 24 dernières heures
-   * Inclut les commits, PRs et issues
+   * Extrait les activités récentes (Partie 2) - 48 dernières heures (2 derniers jours)
+   * Inclut les commits, PRs et issues avec leurs stats
    */
   private extractRecentActivity(
     repo: GraphQLResponse['data']['repository'],
     owner: string,
     name: string,
-  ): RecentActivity[] {
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const activities: RecentActivity[] = [];
+  ): RecentActivity {
+    const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const items: RecentActivityItem[] = [];
 
-    // 1. Commits des 24 dernières heures
+    // 1. Commits des 48 dernières heures
     const allCommits = repo.defaultBranchRef?.target?.history?.nodes || [];
     const recentCommits = allCommits.filter((commit) => {
       if (!commit.committedDate) return false;
       const commitDate = new Date(commit.committedDate);
-      return commitDate >= since24h;
+      return commitDate >= since48h;
     });
 
     recentCommits.forEach((commit) => {
-      activities.push({
+      items.push({
         type: 'commit',
         title: commit.messageHeadline,
         author: commit.author?.name || 'Unknown',
@@ -632,16 +635,16 @@ export class ReposService {
       });
     });
 
-    // 2. Issues des 24 dernières heures
+    // 2. Issues des 48 dernières heures
     const allIssues = repo.issues?.nodes || [];
     const recentIssues = allIssues.filter((issue) => {
       if (!issue.createdAt) return false;
       const issueDate = new Date(issue.createdAt);
-      return issueDate >= since24h;
+      return issueDate >= since48h;
     });
 
     recentIssues.forEach((issue) => {
-      activities.push({
+      items.push({
         type: 'issue',
         title: issue.title,
         author: issue.author?.login || 'Unknown',
@@ -652,16 +655,16 @@ export class ReposService {
       });
     });
 
-    // 3. Pull Requests des 24 dernières heures
+    // 3. Pull Requests des 48 dernières heures
     const allPRs = repo.pullRequests?.nodes || [];
     const recentPRs = allPRs.filter((pr) => {
       if (!pr.createdAt) return false;
       const prDate = new Date(pr.createdAt);
-      return prDate >= since24h;
+      return prDate >= since48h;
     });
 
     recentPRs.forEach((pr) => {
-      activities.push({
+      items.push({
         type: 'pr',
         title: pr.title,
         author: pr.author?.login || 'Unknown',
@@ -673,9 +676,21 @@ export class ReposService {
     });
 
     // Trier par date (plus récent en premier)
-    return activities.sort(
+    const sortedItems = items.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
+
+    // Calculer les stats
+    const stats = {
+      commits: recentCommits.length,
+      prs: recentPRs.length,
+      issues: recentIssues.length,
+    };
+
+    return {
+      stats,
+      items: sortedItems,
+    };
   }
 
   /**
@@ -869,6 +884,7 @@ export class ReposService {
           username: contrib.login,
           commits: contrib.contributions,
           avatar: contrib.avatar_url,
+          url: contrib.html_url || `https://github.com/${contrib.login}`,
         }))
         .sort((a: Contributor, b: Contributor) => b.commits - a.commits);
     } catch (error) {
@@ -937,9 +953,13 @@ export class ReposService {
       // 6. Transformer chaque partie
       return {
         // Partie 1 : Infos du repo
-        info: this.extractRepoInfo(graphQLData, contributors.length),
+        info: this.extractRepoInfo(
+          graphQLData,
+          contributors.length,
+          repo.html_url,
+        ),
 
-        // Partie 2 : Activités des 24 dernières heures (commits, PRs, issues)
+        // Partie 2 : Activités des 48 dernières heures (2 derniers jours) - commits, PRs, issues
         recentActivity: this.extractRecentActivity(graphQLData, owner, name),
 
         // Partie 3 : Stats journalières 30 jours

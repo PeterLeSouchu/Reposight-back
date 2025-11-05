@@ -3,6 +3,7 @@
 export interface RepoInfo {
   name: string;
   description: string | null;
+  url: string;
   languages: Array<{
     name: string;
     percentage: number;
@@ -20,7 +21,7 @@ export interface RepoInfo {
   };
 }
 
-export interface RecentActivity {
+export interface RecentActivityItem {
   type: 'commit' | 'pr' | 'issue';
   title: string;
   author: string;
@@ -31,6 +32,17 @@ export interface RecentActivity {
   sha?: string;
   // Pour les PRs et issues uniquement
   number?: number;
+}
+
+export interface RecentActivityStats {
+  commits: number;
+  prs: number;
+  issues: number;
+}
+
+export interface RecentActivity {
+  stats: RecentActivityStats;
+  items: RecentActivityItem[];
 }
 
 export interface DailyStats {
@@ -67,11 +79,12 @@ export interface Contributor {
   username: string;
   commits: number;
   avatar: string;
+  url: string;
 }
 
 export interface RepoDashboard {
   info: RepoInfo;
-  recentActivity: RecentActivity[];
+  recentActivity: RecentActivity;
   dailyStats: DailyStats[];
   weeklyComparison: WeeklyComparison;
   contributors: Contributor[];
