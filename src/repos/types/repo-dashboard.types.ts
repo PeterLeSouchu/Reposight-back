@@ -1,0 +1,155 @@
+// Types pour les réponses du dashboard
+
+export interface RepoInfo {
+  name: string;
+  description: string | null;
+  languages: Array<{
+    name: string;
+    percentage: number;
+  }>;
+  isFork: boolean;
+  sizeMb: number;
+  contributorsCount: number;
+  starsCount: number;
+  lastCommit: {
+    sha: string;
+    message: string;
+    author: string;
+    authorAvatar: string;
+    date: string;
+  };
+}
+
+export interface RecentActivity {
+  type: 'commit' | 'pr' | 'issue';
+  title: string;
+  author: string;
+  authorAvatar: string;
+  date: string;
+  url: string;
+  // Pour les commits uniquement
+  sha?: string;
+  // Pour les PRs et issues uniquement
+  number?: number;
+}
+
+export interface DailyStats {
+  date: string;
+  commits: number;
+  prs: number;
+  issues: number;
+}
+
+export interface WeekStats {
+  start: string;
+  end: string;
+  commits: number;
+  prs: number;
+  issues: number;
+}
+
+export interface ChangeStats {
+  change: number;
+  percent: number;
+}
+
+export interface WeeklyComparison {
+  currentWeek: WeekStats;
+  previousWeek: WeekStats;
+  comparison: {
+    commits: ChangeStats;
+    prs: ChangeStats;
+    issues: ChangeStats;
+  };
+}
+
+export interface Contributor {
+  username: string;
+  commits: number;
+  avatar: string;
+}
+
+export interface RepoDashboard {
+  info: RepoInfo;
+  recentActivity: RecentActivity[];
+  dailyStats: DailyStats[];
+  weeklyComparison: WeeklyComparison;
+  contributors: Contributor[];
+}
+
+// Types pour les réponses GraphQL GitHub
+export interface GraphQLCommit {
+  oid: string;
+  messageHeadline: string;
+  committedDate: string;
+  author: {
+    name: string;
+    avatarUrl: string;
+  };
+  url?: string;
+}
+
+export interface GraphQLRepository {
+  name: string;
+  description: string | null;
+  isFork: boolean;
+  stargazerCount: number;
+  diskUsage: number;
+  languages: {
+    edges: Array<{
+      size: number;
+      node: {
+        name: string;
+      };
+    }>;
+    totalSize: number;
+  };
+  defaultBranchRef: {
+    target: {
+      history: {
+        nodes: Array<{
+          oid: string;
+          messageHeadline: string;
+          committedDate: string;
+          author: {
+            name: string;
+            avatarUrl: string;
+          } | null;
+        }>;
+      };
+    } | null;
+  } | null;
+  issues: {
+    nodes: Array<{
+      number: number;
+      title: string;
+      createdAt: string;
+      url: string;
+      author: {
+        login: string;
+        avatarUrl: string;
+      } | null;
+    }>;
+  };
+  pullRequests: {
+    nodes: Array<{
+      number: number;
+      title: string;
+      createdAt: string;
+      url: string;
+      author: {
+        login: string;
+        avatarUrl: string;
+      } | null;
+    }>;
+  };
+}
+
+export interface GraphQLResponse {
+  data: {
+    repository: GraphQLRepository;
+  };
+  errors?: Array<{
+    message: string;
+  }>;
+}

@@ -62,6 +62,20 @@ export class ReposController {
     };
   }
 
+  @Get(':repoId')
+  @UseGuards(JwtAuthGuard)
+  async getRepoDashboard(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+  ) {
+    const userId = req.user.githubId;
+
+    const repository = await this.reposService.getRepoDetails(userId, repoId);
+    console.log('repository', repository);
+
+    return repository;
+  }
+
   @Delete(':repoId')
   @UseGuards(JwtAuthGuard)
   async deleteRepo(
