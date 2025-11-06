@@ -16,11 +16,7 @@ export class AuthService {
 
   async generateAccessToken(user: AuthenticatedUser): Promise<string> {
     const payload: JwtAccessPayload = {
-      id: user.id,
       githubId: user.githubId,
-      username: user.username,
-      avatar: user.avatar,
-      email: user.email,
       type: 'access',
     };
     const secret = this.configService.get<string>('JWT_SECRET') || '';
@@ -31,13 +27,8 @@ export class AuthService {
   }
 
   async generateRefreshToken(user: AuthenticatedUser): Promise<string> {
-    // Refresh token : infos minimales nécessaires pour régénérer l'access token
     const payload: JwtRefreshPayload = {
-      id: user.id,
       githubId: user.githubId,
-      username: user.username,
-      avatar: user.avatar,
-      email: user.email,
       type: 'refresh',
     };
     const refreshSecret =

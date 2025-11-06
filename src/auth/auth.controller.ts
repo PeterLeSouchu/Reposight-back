@@ -31,29 +31,21 @@ export class AuthController {
   ): Promise<void> {
     const user = req.user;
 
-    // Vérifier si l'utilisateur existe déjà en DynamoDB
-    const existingUser = await this.usersService.findByGitHubId(user.githubId);
+    const existingUser = await this.usersService.findUserByGithubId(
+      user.githubId,
+    );
 
-    // Si l'utilisateur n'existe pas, le créer avec le token GitHub
     if (!existingUser) {
       await this.usersService.create({
         githubId: user.githubId,
-        username: user.username,
-        email: user.email || '',
-        avatar: user.avatar || '',
         githubAccessToken: user.accessToken || '',
       });
     } else {
-      // Mettre à jour les infos utilisateur et le token GitHub (le token change à chaque reconnexion)
       await this.usersService.update(user.githubId, {
-        username: user.username,
-        email: user.email || '',
-        avatar: user.avatar || '',
         githubAccessToken: user.accessToken || '',
       });
     }
 
-    // Générer les tokens (utilise les données du user GitHub)
     const { refreshToken } = await this.authService.generateTokens(user);
 
     const isProduction =
@@ -84,7 +76,6 @@ export class AuthController {
   ): Promise<Response> {
     const user = req.user;
 
-    // Générer de nouveaux tokens avec les infos du refresh token
     const { accessToken, refreshToken: newRefreshToken } =
       await this.authService.generateTokens(user);
 

@@ -57,7 +57,7 @@ export class ReposController {
     );
 
     return {
-      message: `${savedRepos.length} repo(s) enregistré(s) avec succès`,
+      message: `${savedRepos.length} dépôt(s) enregistré(s) avec succès`,
       repos: savedRepos,
     };
   }
@@ -71,7 +71,6 @@ export class ReposController {
     const userId = req.user.githubId;
 
     const repository = await this.reposService.getRepoDetails(userId, repoId);
-    console.log('repository', repository);
 
     return repository;
   }
@@ -87,7 +86,7 @@ export class ReposController {
     await this.reposService.deleteRepo(userId, repoId);
 
     return {
-      message: 'Repo supprimé avec succès',
+      message: 'Dépôt supprimé avec succès',
     };
   }
 }

@@ -21,7 +21,6 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
 
   async validate(
     accessToken: string,
-    refreshToken: string,
     profile: GitHubProfile,
     done: PassportDoneCallback,
   ): Promise<void> {
@@ -30,12 +29,7 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
       typeof profile.id === 'string' ? Number(profile.id) : profile.id;
 
     const user: AuthenticatedUser = {
-      id: githubId,
       githubId: githubId,
-      username: profile.username,
-      avatar: profile.photos?.[0]?.value || profile._json?.avatar_url || '',
-      email: profile.emails?.[0]?.value || profile._json?.email || '',
-      refreshToken: refreshToken,
       accessToken: accessToken,
     };
 

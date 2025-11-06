@@ -1,5 +1,3 @@
-// Types pour les réponses du dashboard
-
 export interface RepoInfo {
   id: number;
   name: string;
@@ -84,81 +82,4 @@ export interface RepoDashboard {
   dailyStats: DailyStats[];
   weeklyComparison: WeeklyComparison;
   contributors: Contributor[];
-}
-
-// Types pour les réponses GraphQL GitHub
-export interface GraphQLCommit {
-  oid: string;
-  messageHeadline: string;
-  committedDate: string;
-  author: {
-    name: string;
-    avatarUrl: string;
-  };
-  url?: string;
-}
-
-export interface GraphQLRepository {
-  name: string;
-  description: string | null;
-  isFork: boolean;
-  stargazerCount: number;
-  diskUsage: number;
-  languages: {
-    edges: Array<{
-      size: number;
-      node: {
-        name: string;
-      };
-    }>;
-    totalSize: number;
-  };
-  defaultBranchRef: {
-    target: {
-      history: {
-        nodes: Array<{
-          oid: string;
-          messageHeadline: string;
-          committedDate: string;
-          author: {
-            name: string;
-            avatarUrl: string;
-          } | null;
-        }>;
-      };
-    } | null;
-  } | null;
-  issues: {
-    nodes: Array<{
-      number: number;
-      title: string;
-      createdAt: string;
-      url: string;
-      author: {
-        login: string;
-        avatarUrl: string;
-      } | null;
-    }>;
-  };
-  pullRequests: {
-    nodes: Array<{
-      number: number;
-      title: string;
-      createdAt: string;
-      url: string;
-      author: {
-        login: string;
-        avatarUrl: string;
-      } | null;
-    }>;
-  };
-}
-
-export interface GraphQLResponse {
-  data: {
-    repository: GraphQLRepository;
-  };
-  errors?: Array<{
-    message: string;
-  }>;
 }

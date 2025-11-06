@@ -14,8 +14,8 @@ export class RefreshTokenGuard extends AuthGuard('refresh-token') {
   handleRequest(err: any, user: any, info: any) {
     // Si pas de user OU erreur OU info (token invalide/expiré)
     if (err || !user || info) {
-      // Refresh token invalide/expiré/absent → toujours le même message
-      throw new UnauthorizedException('jwt refresh token expired');
+      // Refresh token invalide/expiré/absent,  toujours le même message
+      throw new UnauthorizedException('Refresh token JWT expiré');
     }
     return user;
   }

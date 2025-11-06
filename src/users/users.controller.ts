@@ -7,6 +7,7 @@ import {
   Res,
   UseGuards,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
@@ -29,18 +30,46 @@ export class UsersController {
   async getProfile(@Req() req: RequestWithUser): Promise<UserProfileResponse> {
     const githubId = req.user.githubId;
 
-    const dbUser = await this.usersService.findByGitHubId(githubId);
+    const dbUser = await this.usersService.findUserByGithubId(githubId);
 
     if (!dbUser) {
       throw new NotFoundException('Utilisateur non trouvé en base de données');
     }
 
-    return {
-      avatar: dbUser.avatar,
-      username: dbUser.username,
-      email: dbUser.email,
-      isNewUser: dbUser.isNewUser ?? false,
-    };
+    const githubToken = dbUser.githubAccessToken;
+    if (!githubToken) {
+      throw new NotFoundException(
+        'Token GitHub non trouvé pour cet utilisateur',
+      );
+    }
+
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new InternalServerErrorException(
+          `Erreur lors de la récupération des données GitHub: ${response.statusText}`,
+        );
+      }
+
+      const githubUser = await response.json();
+
+      return {
+        avatar: githubUser.avatar_url || '',
+        username: githubUser.login || '',
+        email: githubUser.email || '',
+        isNewUser: dbUser.isNewUser ?? false,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération du profil utilisateur',
+      );
+    }
   }
 
   @Patch('steps')
@@ -48,7 +77,7 @@ export class UsersController {
   async completeSteps(@Req() req: RequestWithUser) {
     const githubId = req.user.githubId;
 
-    const dbUser = await this.usersService.findByGitHubId(githubId);
+    const dbUser = await this.usersService.findUserByGithubId(githubId);
     if (!dbUser) {
       throw new NotFoundException('Utilisateur non trouvé en base de données');
     }
@@ -70,7 +99,7 @@ export class UsersController {
   ): Promise<Response> {
     const githubId = req.user.githubId;
 
-    const dbUser = await this.usersService.findByGitHubId(githubId);
+    const dbUser = await this.usersService.findUserByGithubId(githubId);
     if (!dbUser) {
       throw new NotFoundException('Utilisateur non trouvé en base de données');
     }

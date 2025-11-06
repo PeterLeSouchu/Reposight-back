@@ -8,12 +8,7 @@ import {
   UpdateCommand,
   DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import type {
-  CreateUserDto,
-  UpdateUserDto,
-  User,
-  DynamoDBUser,
-} from './types/users.types';
+import type { User } from './types/users.types';
 
 @Injectable()
 export class UsersService {
@@ -35,50 +30,38 @@ export class UsersService {
       this.configService.get<string>('DYNAMO_USERS_TABLE') || 'Users';
   }
 
-  async findByGitHubId(githubId: string | number): Promise<User | null> {
+  async findUserByGithubId(githubId: number): Promise<User | null> {
     try {
-      const githubIdNumber = Number(githubId);
-
       const result = await this.dynamoDBClient.send(
         new GetCommand({
           TableName: this.tableName,
           Key: {
-            github_id: githubIdNumber,
+            githubId: githubId,
           },
         }),
       );
 
-      if (result.Item) {
-        const item = result.Item as DynamoDBUser;
-        return {
-          ...item,
-          githubId: item.github_id,
-          isNewUser: item.isNewUser ?? false,
-        } as User;
+      if (!result.Item) {
+        return null;
       }
-      return null;
+      return result.Item as User;
     } catch (error) {
-      console.error("Erreur lors de la recherche de l'utilisateur:", error);
       throw new InternalServerErrorException(
         "Erreur lors de la recherche de l'utilisateur",
       );
     }
   }
 
-  async create(userData: CreateUserDto): Promise<User> {
+  async create(userData: Partial<User> & { githubId: number }): Promise<User> {
     try {
-      const githubIdNumber = Number(userData.githubId);
+      const now = new Date().toISOString();
 
-      const user: DynamoDBUser = {
-        github_id: githubIdNumber,
-        username: userData.username,
-        email: userData.email,
-        avatar: userData.avatar,
+      const user: User = {
+        githubId: userData.githubId,
         githubAccessToken: userData.githubAccessToken || '',
-        favorites: [],
         isNewUser: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       await this.dynamoDBClient.send(
@@ -88,49 +71,26 @@ export class UsersService {
         }),
       );
 
-      return {
-        ...user,
-        githubId: user.github_id,
-      } as User;
+      return user;
     } catch (error) {
-      console.error("Erreur lors de la création de l'utilisateur:", error);
       throw new InternalServerErrorException(
         "Erreur lors de la création de l'utilisateur",
       );
     }
   }
 
-  async update(
-    githubId: string | number,
-    updateData: UpdateUserDto,
-  ): Promise<User> {
+  async update(githubId: number, updateData: Partial<User>): Promise<User> {
     try {
       const updateExpression: string[] = [];
-      const expressionAttributeValues: Record<string, unknown> = {};
-      const expressionAttributeNames: Record<string, string> = {};
+      const expressionAttributeValues: {
+        [key: string]: string | boolean;
+      } = {};
+      const expressionAttributeNames: { [key: string]: string } = {};
 
       if (updateData.githubAccessToken !== undefined) {
         updateExpression.push('#token = :token');
         expressionAttributeNames['#token'] = 'githubAccessToken';
         expressionAttributeValues[':token'] = updateData.githubAccessToken;
-      }
-
-      if (updateData.username !== undefined) {
-        updateExpression.push('#username = :username');
-        expressionAttributeNames['#username'] = 'username';
-        expressionAttributeValues[':username'] = updateData.username;
-      }
-
-      if (updateData.email !== undefined) {
-        updateExpression.push('#email = :email');
-        expressionAttributeNames['#email'] = 'email';
-        expressionAttributeValues[':email'] = updateData.email;
-      }
-
-      if (updateData.avatar !== undefined) {
-        updateExpression.push('#avatar = :avatar');
-        expressionAttributeNames['#avatar'] = 'avatar';
-        expressionAttributeValues[':avatar'] = updateData.avatar;
       }
 
       if (updateData.isNewUser !== undefined) {
@@ -139,19 +99,15 @@ export class UsersService {
         expressionAttributeValues[':isNewUser'] = updateData.isNewUser;
       }
 
-      // Toujours mettre à jour updatedAt
       updateExpression.push('#updatedAt = :updatedAt');
       expressionAttributeNames['#updatedAt'] = 'updatedAt';
       expressionAttributeValues[':updatedAt'] = new Date().toISOString();
-
-      // Convertir en number pour DynamoDB
-      const githubIdNumber = Number(githubId);
 
       const result = await this.dynamoDBClient.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: {
-            github_id: githubIdNumber,
+            githubId: githubId,
           },
           UpdateExpression: `SET ${updateExpression.join(', ')}`,
           ExpressionAttributeNames: expressionAttributeNames,
@@ -160,40 +116,30 @@ export class UsersService {
         }),
       );
 
-      // Mapper les données DynamoDB (github_id -> githubId)
       if (result.Attributes) {
-        const item = result.Attributes as DynamoDBUser;
-        return {
-          ...item,
-          githubId: item.github_id,
-          isNewUser: item.isNewUser ?? false,
-        } as User;
+        return result.Attributes as User;
       }
       throw new InternalServerErrorException(
         'Aucun attribut retourné lors de la mise à jour',
       );
     } catch (error) {
-      console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
       throw new InternalServerErrorException(
         "Erreur lors de la mise à jour de l'utilisateur",
       );
     }
   }
 
-  async delete(githubId: string | number): Promise<void> {
+  async delete(githubId: number): Promise<void> {
     try {
-      const githubIdNumber = Number(githubId);
-
       await this.dynamoDBClient.send(
         new DeleteCommand({
           TableName: this.tableName,
           Key: {
-            github_id: githubIdNumber,
+            githubId: githubId,
           },
         }),
       );
     } catch (error) {
-      console.error("Erreur lors de la suppression de l'utilisateur:", error);
       throw new InternalServerErrorException(
         "Erreur lors de la suppression de l'utilisateur",
       );

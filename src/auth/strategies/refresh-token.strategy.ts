@@ -17,11 +17,7 @@ export class RefreshTokenStrategy extends PassportStrategy(
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: RequestWithRefreshToken): string | null => {
-          return (
-            request?.body?.refreshToken ||
-            request?.cookies?.refresh_token ||
-            null
-          );
+          return request?.cookies?.refresh_token || null;
         },
       ]),
       ignoreExpiration: false,
@@ -31,14 +27,10 @@ export class RefreshTokenStrategy extends PassportStrategy(
 
   async validate(payload: JwtRefreshPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'refresh') {
-      throw new UnauthorizedException('Invalid token type');
+      throw new UnauthorizedException('Type de token invalide');
     }
     return {
-      id: payload.id,
       githubId: payload.githubId,
-      username: payload.username,
-      avatar: payload.avatar,
-      email: payload.email,
     };
   }
 }

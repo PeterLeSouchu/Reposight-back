@@ -14,8 +14,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   handleRequest(err: any, user: any, info: any) {
     // Si pas de user OU erreur OU info (token invalide/expiré)
     if (err || !user || info) {
-      // Access token invalide/expiré/absent → toujours le même message
-      throw new UnauthorizedException('jwt access token expired');
+      // Access token invalide/expiré/absent,  toujours le même message
+      throw new UnauthorizedException("Token d'accès JWT expiré");
     }
     return user;
   }
