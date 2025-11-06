@@ -1,6 +1,7 @@
 // Types pour les réponses du dashboard
 
 export interface RepoInfo {
+  id: number;
   name: string;
   description: string | null;
   url: string;
@@ -52,26 +53,21 @@ export interface DailyStats {
   issues: number;
 }
 
-export interface WeekStats {
-  start: string;
-  end: string;
-  commits: number;
-  prs: number;
-  issues: number;
-}
-
-export interface ChangeStats {
-  change: number;
-  percent: number;
-}
-
 export interface WeeklyComparison {
-  currentWeek: WeekStats;
-  previousWeek: WeekStats;
-  comparison: {
-    commits: ChangeStats;
-    prs: ChangeStats;
-    issues: ChangeStats;
+  commits: {
+    currentWeek: number;
+    lastWeek: number;
+    percentage: number;
+  };
+  prs: {
+    currentWeek: number;
+    lastWeek: number;
+    percentage: number;
+  };
+  issues: {
+    currentWeek: number;
+    lastWeek: number;
+    percentage: number;
   };
 }
 

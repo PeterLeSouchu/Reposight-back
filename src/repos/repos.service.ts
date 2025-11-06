@@ -24,7 +24,6 @@ import type {
   WeeklyComparison,
   Contributor,
   GraphQLResponse,
-  ChangeStats,
 } from './types/repo-dashboard.types';
 
 @Injectable()
@@ -560,6 +559,7 @@ export class ReposService {
     repo: GraphQLResponse['data']['repository'],
     contributorsCount: number,
     repoUrl: string,
+    repoId: number,
   ): RepoInfo {
     // Le dernier commit est le premier de l'historique (trié par date décroissante)
     const commits = repo.defaultBranchRef?.target?.history?.nodes || [];
@@ -577,6 +577,7 @@ export class ReposService {
     }));
 
     return {
+      id: repoId,
       name: repo.name,
       description: repo.description,
       url: repoUrl,
@@ -811,40 +812,29 @@ export class ReposService {
       }
     });
 
-    // Calculer les comparaisons
-    const calculateChange = (
-      current: number,
-      previous: number,
-    ): ChangeStats => {
-      const change = current - previous;
-      const percent =
-        previous > 0
-          ? Math.round((change / previous) * 100 * 100) / 100
-          : current > 0
-            ? 100
-            : 0;
-      return { change, percent };
+    // Calculer le pourcentage d'évolution
+    const calculatePercentage = (current: number, previous: number): number => {
+      if (previous === 0) {
+        return current > 0 ? 100 : 0;
+      }
+      return Math.round(((current - previous) / previous) * 100 * 100) / 100;
     };
 
     return {
-      currentWeek: {
-        start: week1Start.toISOString().split('T')[0],
-        end: week1End.toISOString().split('T')[0],
-        commits: week1Commits,
-        prs: week1PRs,
-        issues: week1Issues,
+      commits: {
+        currentWeek: week1Commits,
+        lastWeek: week2Commits,
+        percentage: calculatePercentage(week1Commits, week2Commits),
       },
-      previousWeek: {
-        start: week2Start.toISOString().split('T')[0],
-        end: week2End.toISOString().split('T')[0],
-        commits: week2Commits,
-        prs: week2PRs,
-        issues: week2Issues,
+      prs: {
+        currentWeek: week1PRs,
+        lastWeek: week2PRs,
+        percentage: calculatePercentage(week1PRs, week2PRs),
       },
-      comparison: {
-        commits: calculateChange(week1Commits, week2Commits),
-        prs: calculateChange(week1PRs, week2PRs),
-        issues: calculateChange(week1Issues, week2Issues),
+      issues: {
+        currentWeek: week1Issues,
+        lastWeek: week2Issues,
+        percentage: calculatePercentage(week1Issues, week2Issues),
       },
     };
   }
@@ -957,6 +947,7 @@ export class ReposService {
           graphQLData,
           contributors.length,
           repo.html_url,
+          repoId,
         ),
 
         // Partie 2 : Activités des 48 dernières heures (2 derniers jours) - commits, PRs, issues
