@@ -24,7 +24,6 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  await app.listen(process.env.PORT ?? 3001);
-  console.log('listeing on', process.env.PORT);
+  await app.listen(3001);
 }
 bootstrap();
