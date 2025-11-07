@@ -8,6 +8,7 @@ export interface RepoInfo {
     percentage: number;
   }>;
   isFork: boolean;
+  isPrivate: boolean;
   sizeMb: number;
   contributorsCount: number;
   starsCount: number;

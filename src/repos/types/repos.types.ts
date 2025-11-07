@@ -39,6 +39,7 @@ export interface GitHubApiRepoInfo {
   name: string;
   description: string | null;
   fork: boolean;
+  private: boolean;
   stargazers_count: number;
   size: number;
   languages_url: string;

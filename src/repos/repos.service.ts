@@ -643,6 +643,7 @@ export class ReposService {
       url: repoUrl,
       languages: languagesWithPercentage,
       isFork: repoInfo.fork,
+      isPrivate: repoInfo.private,
       sizeMb: Math.round((repoInfo.size / 1024) * 100) / 100,
       contributorsCount,
       starsCount: repoInfo.stargazers_count,
@@ -780,9 +781,16 @@ export class ReposService {
       }
     });
 
-    return Object.values(dailyStatsMap).sort(
+    const sortedStats = Object.values(dailyStatsMap).sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
+
+    const hasActivity = sortedStats.some(
+      (stats) => stats.commits > 0 || stats.prs > 0 || stats.issues > 0,
+    );
+
+    // Soit il n'y a aucune activité (commits / pr / issues) et on envoie un array vide, soit il y en a au moins une et on envoie totues les date afin de pouvoir afficher le graphique correctement.
+    return hasActivity ? sortedStats : [];
   }
 
   private calculateWeeklyComparison(
@@ -1145,16 +1153,37 @@ export class ReposService {
     );
 
     if (!response.ok) {
-      throw new InternalServerErrorException(
-        `Erreur lors de la récupération des commits: ${response.statusText}`,
-      );
+      if (response.status === 409) {
+        try {
+          const errorBody = await response.json();
+          if (
+            errorBody &&
+            typeof errorBody.message === 'string' &&
+            errorBody.message.toLowerCase().includes('git repository is empty')
+          ) {
+            return {
+              commits: [],
+              total: 0,
+              linkHeader: null,
+            };
+          }
+        } catch {}
+      }
+
+      let errorMessage = `Erreur lors de la récupération des commits: ${response.statusText}`;
+      try {
+        const text = await response.text();
+        if (text) {
+          errorMessage = text;
+        }
+      } catch {}
+
+      throw new InternalServerErrorException(errorMessage);
     }
 
     const commits = (await response.json()) as GitHubApiCommit[];
     const linkHeader = response.headers.get('Link');
 
-    // Pour le total avec /commits, on ne peut pas l'obtenir directement
-    // On peut estimer à partir du header Link ou retourner null
     let total: number | null = null;
     if (linkHeader) {
       const lastMatch = linkHeader.match(
@@ -1162,7 +1191,7 @@ export class ReposService {
       );
       if (lastMatch) {
         const lastPage = parseInt(lastMatch[1], 10);
-        total = lastPage * perPage; // Approximation
+        total = lastPage * perPage;
       }
     }
 
@@ -1183,7 +1212,6 @@ export class ReposService {
     try {
       const token = await this.getGitHubToken(userId);
 
-      // Cas 1: Auteur ET branche → récupérer tous les commits de la branche et filtrer
       if (author && branch) {
         const normalizedAuthor = author.toLowerCase();
         let allCommits: GitHubApiCommit[] = [];
@@ -1202,6 +1230,20 @@ export class ReposService {
           );
 
           if (!response.ok) {
+            if (response.status === 409) {
+              try {
+                const errorBody = await response.json();
+                if (
+                  errorBody &&
+                  typeof errorBody.message === 'string' &&
+                  errorBody.message
+                    .toLowerCase()
+                    .includes('git repository is empty')
+                ) {
+                  return 0;
+                }
+              } catch {}
+            }
             return null;
           }
 
@@ -1209,7 +1251,6 @@ export class ReposService {
           if (commits.length === 0) {
             hasMore = false;
           } else {
-            // Filtrer par auteur
             const filteredCommits = commits.filter((commit) => {
               const login = commit.author?.login?.toLowerCase();
               const authorName = commit.commit.author.name?.toLowerCase();
@@ -1231,7 +1272,6 @@ export class ReposService {
         return allCommits.length;
       }
 
-      // Cas 2: Seulement auteur OU seulement branche → utiliser l'API GitHub directement
       const params = new URLSearchParams();
       params.set('per_page', '100');
       params.set('page', '1');
@@ -1254,6 +1294,20 @@ export class ReposService {
       );
 
       if (!response.ok) {
+        if (response.status === 409) {
+          try {
+            const errorBody = await response.json();
+            if (
+              errorBody &&
+              typeof errorBody.message === 'string' &&
+              errorBody.message
+                .toLowerCase()
+                .includes('git repository is empty')
+            ) {
+              return 0;
+            }
+          } catch {}
+        }
         return null;
       }
 
@@ -1421,97 +1475,6 @@ export class ReposService {
       return allBranches.map((branch) => branch.name);
     } catch (error) {
       return [];
-    }
-  }
-
-  private async getTotalCommits(
-    userId: number,
-    owner: string,
-    name: string,
-  ): Promise<number | null> {
-    try {
-      const token = await this.getGitHubToken(userId);
-
-      // Option 1: Compter via pagination avec /commits (plus fiable)
-      // On récupère la première page et on parse le header Link pour obtenir la dernière page
-      const response = await fetch(
-        `https://api.github.com/repos/${owner}/${name}/commits?per_page=100&page=1`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.statusText}`);
-      }
-
-      const linkHeader = response.headers.get('Link');
-      const commits = (await response.json()) as GitHubApiCommit[];
-
-      // Si pas de header Link, il n'y a qu'une seule page
-      if (!linkHeader) {
-        return commits.length;
-      }
-
-      // Parser le header Link pour obtenir le numéro de la dernière page
-      const lastMatch = linkHeader.match(
-        /<[^>]+[?&]page=(\d+)[^>]*>; rel="last"/,
-      );
-
-      if (lastMatch) {
-        const lastPage = parseInt(lastMatch[1], 10);
-        // Récupérer la dernière page pour compter exactement
-        const lastPageResponse = await fetch(
-          `https://api.github.com/repos/${owner}/${name}/commits?per_page=100&page=${lastPage}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          },
-        );
-
-        if (lastPageResponse.ok) {
-          const lastPageCommits =
-            (await lastPageResponse.json()) as GitHubApiCommit[];
-          // Calcul: (pages complètes - 1) * 100 + nombre de commits sur la dernière page
-          const total = (lastPage - 1) * 100 + lastPageCommits.length;
-          return total;
-        }
-      }
-
-      // Fallback: utiliser stats/contributors si disponible
-      const statsResponse = await fetch(
-        `https://api.github.com/repos/${owner}/${name}/stats/contributors`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-        },
-      );
-
-      if (statsResponse.ok) {
-        const contributors = (await statsResponse.json()) as Array<{
-          total: number;
-        }>;
-        if (Array.isArray(contributors)) {
-          const total = contributors.reduce(
-            (sum, contrib) => sum + (contrib.total || 0),
-            0,
-          );
-          if (total > 0) {
-            return total;
-          }
-        }
-      }
-
-      return null;
-    } catch (error) {
-      return null;
     }
   }
 
