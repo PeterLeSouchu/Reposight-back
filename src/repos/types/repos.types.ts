@@ -99,3 +99,48 @@ export interface DynamoDBRepo {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Commit {
+  sha: string;
+  message: string;
+  author: {
+    name: string;
+    login: string | null;
+    avatar: string | null;
+  };
+  date: string;
+  url: string;
+}
+
+export interface PaginationInfo {
+  page: number;
+  perPage: number;
+  total: number | null;
+  totalPages: number | null;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface CommitsResponse {
+  commits: Commit[];
+  pagination: PaginationInfo;
+}
+
+export interface AuthorInfo {
+  username: string;
+  avatar: string;
+}
+
+export interface CommitsMetadata {
+  authors: AuthorInfo[];
+  branches: string[];
+}
+
+export interface GitHubApiBranch {
+  name: string;
+  commit: {
+    sha: string;
+    url: string;
+  };
+  protected: boolean;
+}

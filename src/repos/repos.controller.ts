@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -60,6 +61,48 @@ export class ReposController {
       message: `${savedRepos.length} dépôt(s) enregistré(s) avec succès`,
       repos: savedRepos,
     };
+  }
+
+  @Get(':repoId/commits/metadata')
+  @UseGuards(JwtAuthGuard)
+  async getCommitsMetadata(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+  ) {
+    const userId = req.user.githubId;
+
+    const metadata = await this.reposService.getCommitsMetadata(userId, repoId);
+
+    return metadata;
+  }
+
+  @Get(':repoId/commits')
+  @UseGuards(JwtAuthGuard)
+  async getCommits(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
+    @Query('search') search?: string,
+    @Query('author') author?: string,
+    @Query('branch') branch?: string,
+  ) {
+    const userId = req.user.githubId;
+
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const perPageNumber = perPage ? parseInt(perPage, 10) : 100;
+
+    const commits = await this.reposService.getCommits(
+      userId,
+      repoId,
+      pageNumber,
+      perPageNumber,
+      search,
+      author,
+      branch,
+    );
+
+    return commits;
   }
 
   @Get(':repoId')

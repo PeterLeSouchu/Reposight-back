@@ -25,6 +25,11 @@ import type {
   GitHubApiLanguage,
   GitHubApiIssue,
   GitHubApiPullRequest,
+  Commit,
+  CommitsResponse,
+  CommitsMetadata,
+  PaginationInfo,
+  GitHubApiBranch,
 } from './types/repos.types';
 import type {
   RepoDashboard,
@@ -611,12 +616,12 @@ export class ReposService {
   private extractRepoInfo(
     repoInfo: GitHubApiRepoInfo,
     languages: GitHubApiLanguage,
-    allCommitsREST: GitHubApiCommit[],
+    commits: GitHubApiCommit[],
     contributorsCount: number,
     repoUrl: string,
     repoId: number,
   ): RepoInfo {
-    const lastCommitNode = allCommitsREST.length > 0 ? allCommitsREST[0] : null;
+    const lastCommitNode = commits.length > 0 ? commits[0] : null;
 
     const totalSize = Object.values(languages).reduce(
       (sum, size) => sum + size,
@@ -660,14 +665,14 @@ export class ReposService {
   }
 
   private extractRecentActivity(
-    allCommitsREST: GitHubApiCommit[],
-    allIssuesREST: GitHubApiIssue[],
-    allPRsREST: GitHubApiPullRequest[],
+    commits: GitHubApiCommit[],
+    issues: GitHubApiIssue[],
+    prs: GitHubApiPullRequest[],
   ): RecentActivity {
     const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
     const items: RecentActivityItem[] = [];
 
-    const recentCommits = allCommitsREST.filter((commit) => {
+    const recentCommits = commits.filter((commit) => {
       const commitDate = new Date(commit.commit.author.date);
       return commitDate >= since48h;
     });
@@ -684,7 +689,7 @@ export class ReposService {
       });
     });
 
-    const recentIssues = allIssuesREST.filter((issue) => {
+    const recentIssues = issues.filter((issue) => {
       const issueDate = new Date(issue.created_at);
       return issueDate >= since48h;
     });
@@ -701,7 +706,7 @@ export class ReposService {
       });
     });
 
-    const recentPRs = allPRsREST.filter((pr) => {
+    const recentPRs = prs.filter((pr) => {
       const prDate = new Date(pr.created_at);
       return prDate >= since48h;
     });
@@ -948,6 +953,38 @@ export class ReposService {
     }
   }
 
+  private async fetchLatestCommit(
+    userId: number,
+    owner: string,
+    name: string,
+  ): Promise<GitHubApiCommit | null> {
+    try {
+      const token = await this.getGitHubToken(userId);
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/commits?per_page=1`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const commits = (await response.json()) as GitHubApiCommit[];
+      if (commits.length === 0) {
+        return null;
+      }
+
+      return commits[0];
+    } catch (error) {
+      return null;
+    }
+  }
+
   async getRepoDetails(userId: number, repoId: number): Promise<RepoDashboard> {
     try {
       const repo = await this.getSelectedRepo(userId, repoId);
@@ -957,9 +994,9 @@ export class ReposService {
         repoInfo,
         languages,
         contributors,
-        allCommitsREST,
-        allIssuesREST,
-        allPRsREST,
+        commitsLast30Days,
+        issuesLast30Days,
+        prsLast30Days,
       ] = await Promise.all([
         this.fetchRepoInfo(userId, owner, name),
         this.fetchRepoLanguages(userId, owner, name),
@@ -969,15 +1006,23 @@ export class ReposService {
         this.fetchPullRequestsLast30Days(userId, owner, name),
       ]);
 
-      const commits30d = allCommitsREST.map((commit) => ({
+      let commitsForInfo = commitsLast30Days;
+      if (commitsForInfo.length === 0) {
+        const latestCommit = await this.fetchLatestCommit(userId, owner, name);
+        if (latestCommit) {
+          commitsForInfo = [latestCommit];
+        }
+      }
+
+      const commits30d = commitsLast30Days.map((commit) => ({
         committedDate: commit.commit.author.date,
       }));
 
-      const issues30d = allIssuesREST.map((issue) => ({
+      const issues30d = issuesLast30Days.map((issue) => ({
         createdAt: issue.created_at,
       }));
 
-      const prs30d = allPRsREST.map((pr) => ({
+      const prs30d = prsLast30Days.map((pr) => ({
         createdAt: pr.created_at,
       }));
 
@@ -985,16 +1030,16 @@ export class ReposService {
         info: this.extractRepoInfo(
           repoInfo,
           languages,
-          allCommitsREST,
+          commitsForInfo,
           contributors.length,
           repo.htmlUrl,
           repoId,
         ),
 
         recentActivity: this.extractRecentActivity(
-          allCommitsREST,
-          allIssuesREST,
-          allPRsREST,
+          commitsLast30Days,
+          issuesLast30Days,
+          prsLast30Days,
         ),
 
         dailyStats: this.calculateDailyStats(commits30d, issues30d, prs30d),
@@ -1009,6 +1054,493 @@ export class ReposService {
       };
     } catch (error) {
       throw error;
+    }
+  }
+
+  private formatCommit(githubCommit: GitHubApiCommit): Commit {
+    return {
+      sha: githubCommit.sha.substring(0, 7),
+      message: githubCommit.commit.message.split('\n')[0],
+      author: {
+        name: githubCommit.commit.author.name,
+        login: githubCommit.author?.login || null,
+        avatar: githubCommit.author?.avatar_url || null,
+      },
+      date: githubCommit.commit.author.date,
+      url: githubCommit.html_url,
+    };
+  }
+
+  private parsePaginationLinkHeader(
+    linkHeader: string | null,
+    currentPage: number,
+  ): {
+    totalPages: number | null;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  } {
+    if (!linkHeader) {
+      return {
+        totalPages: currentPage,
+        hasNext: false,
+        hasPrevious: currentPage > 1,
+      };
+    }
+
+    let totalPages: number | null = null;
+    const hasNext = linkHeader.includes('rel="next"');
+    const hasPrevious = linkHeader.includes('rel="prev"');
+
+    // Extraire le numéro de la dernière page
+    const lastMatch = linkHeader.match(
+      /<[^>]+[?&]page=(\d+)[^>]*>; rel="last"/,
+    );
+    if (lastMatch) {
+      totalPages = parseInt(lastMatch[1], 10);
+    } else if (!hasNext) {
+      // Si pas de "next", on est sur la dernière page
+      totalPages = currentPage;
+    }
+
+    return {
+      totalPages,
+      hasNext,
+      hasPrevious,
+    };
+  }
+
+  private async fetchCommitsStandard(
+    userId: number,
+    owner: string,
+    name: string,
+    author: string | undefined,
+    branch: string | undefined,
+    page: number,
+    perPage: number,
+  ): Promise<{
+    commits: GitHubApiCommit[];
+    total: number | null;
+    linkHeader: string | null;
+  }> {
+    const token = await this.getGitHubToken(userId);
+    const params = new URLSearchParams();
+    params.set('per_page', perPage.toString());
+    params.set('page', page.toString());
+
+    if (author) {
+      params.set('author', author);
+    }
+    if (branch) {
+      params.set('sha', branch);
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${name}/commits?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new InternalServerErrorException(
+        `Erreur lors de la récupération des commits: ${response.statusText}`,
+      );
+    }
+
+    const commits = (await response.json()) as GitHubApiCommit[];
+    const linkHeader = response.headers.get('Link');
+
+    // Pour le total avec /commits, on ne peut pas l'obtenir directement
+    // On peut estimer à partir du header Link ou retourner null
+    let total: number | null = null;
+    if (linkHeader) {
+      const lastMatch = linkHeader.match(
+        /<[^>]+[?&]page=(\d+)[^>]*>; rel="last"/,
+      );
+      if (lastMatch) {
+        const lastPage = parseInt(lastMatch[1], 10);
+        total = lastPage * perPage; // Approximation
+      }
+    }
+
+    return {
+      commits,
+      total,
+      linkHeader,
+    };
+  }
+
+  private async getTotalCommitsWithFilters(
+    userId: number,
+    owner: string,
+    name: string,
+    author: string | undefined,
+    branch: string | undefined,
+  ): Promise<number | null> {
+    try {
+      const token = await this.getGitHubToken(userId);
+
+      // Cas 1: Auteur ET branche → récupérer tous les commits de la branche et filtrer
+      if (author && branch) {
+        const normalizedAuthor = author.toLowerCase();
+        let allCommits: GitHubApiCommit[] = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore) {
+          const response = await fetch(
+            `https://api.github.com/repos/${owner}/${name}/commits?sha=${branch}&per_page=100&page=${page}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github.v3+json',
+              },
+            },
+          );
+
+          if (!response.ok) {
+            return null;
+          }
+
+          const commits = (await response.json()) as GitHubApiCommit[];
+          if (commits.length === 0) {
+            hasMore = false;
+          } else {
+            // Filtrer par auteur
+            const filteredCommits = commits.filter((commit) => {
+              const login = commit.author?.login?.toLowerCase();
+              const authorName = commit.commit.author.name?.toLowerCase();
+              return (
+                login === normalizedAuthor || authorName === normalizedAuthor
+              );
+            });
+            allCommits.push(...filteredCommits);
+
+            const linkHeader = response.headers.get('Link');
+            if (!linkHeader || !linkHeader.includes('rel="next"')) {
+              hasMore = false;
+            } else {
+              page++;
+            }
+          }
+        }
+
+        return allCommits.length;
+      }
+
+      // Cas 2: Seulement auteur OU seulement branche → utiliser l'API GitHub directement
+      const params = new URLSearchParams();
+      params.set('per_page', '100');
+      params.set('page', '1');
+
+      if (author) {
+        params.set('author', author);
+      }
+      if (branch) {
+        params.set('sha', branch);
+      }
+
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/commits?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const linkHeader = response.headers.get('Link');
+      const commits = (await response.json()) as GitHubApiCommit[];
+
+      if (!linkHeader) {
+        return commits.length;
+      }
+
+      const lastMatch = linkHeader.match(
+        /<[^>]+[?&]page=(\d+)[^>]*>; rel="last"/,
+      );
+
+      if (lastMatch) {
+        const lastPage = parseInt(lastMatch[1], 10);
+        const lastPageParams = new URLSearchParams();
+        lastPageParams.set('per_page', '100');
+        lastPageParams.set('page', lastPage.toString());
+        if (author) {
+          lastPageParams.set('author', author);
+        }
+        if (branch) {
+          lastPageParams.set('sha', branch);
+        }
+        const lastPageResponse = await fetch(
+          `https://api.github.com/repos/${owner}/${name}/commits?${lastPageParams.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          },
+        );
+
+        if (lastPageResponse.ok) {
+          const lastPageCommits =
+            (await lastPageResponse.json()) as GitHubApiCommit[];
+          const total = (lastPage - 1) * 100 + lastPageCommits.length;
+          return total;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async getCommits(
+    userId: number,
+    repoId: number,
+    page: number = 1,
+    perPage: number = 100,
+    search?: string,
+    author?: string,
+    branch?: string,
+  ): Promise<CommitsResponse> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const trimmedSearch = search?.trim() || '';
+      if (trimmedSearch.length > 0) {
+        throw new BadRequestException(
+          'La recherche par message de commit n’est pas prise en charge.',
+        );
+      }
+
+      const trimmedAuthor = author?.trim() || '';
+      const trimmedBranch = branch?.trim() || '';
+
+      const authorParam = trimmedAuthor.length > 0 ? trimmedAuthor : undefined;
+      const branchParam = trimmedBranch.length > 0 ? trimmedBranch : undefined;
+
+      const [result, total] = await Promise.all([
+        this.fetchCommitsStandard(
+          userId,
+          owner,
+          name,
+          authorParam,
+          branchParam,
+          page,
+          perPage,
+        ),
+        this.getTotalCommitsWithFilters(
+          userId,
+          owner,
+          name,
+          authorParam,
+          branchParam,
+        ),
+      ]);
+
+      const paginationInfo = this.parsePaginationLinkHeader(
+        result.linkHeader,
+        page,
+      );
+
+      const totalPages =
+        total !== null ? Math.ceil(total / perPage) : paginationInfo.totalPages;
+
+      return {
+        commits: result.commits.map((commit) => this.formatCommit(commit)),
+        pagination: {
+          page,
+          perPage,
+          total,
+          totalPages,
+          hasNext: paginationInfo.hasNext,
+          hasPrevious: paginationInfo.hasPrevious,
+        },
+      };
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des commits',
+      );
+    }
+  }
+
+  private async fetchBranches(
+    userId: number,
+    owner: string,
+    name: string,
+  ): Promise<string[]> {
+    try {
+      const token = await this.getGitHubToken(userId);
+      const allBranches: GitHubApiBranch[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${name}/branches?per_page=100&page=${page}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          },
+        );
+
+        if (!response.ok) {
+          break;
+        }
+
+        const branches = (await response.json()) as GitHubApiBranch[];
+
+        if (branches.length === 0) {
+          hasMore = false;
+        } else {
+          allBranches.push(...branches);
+          page++;
+
+          const linkHeader = response.headers.get('Link');
+          if (!linkHeader || !linkHeader.includes('rel="next"')) {
+            hasMore = false;
+          }
+        }
+      }
+
+      return allBranches.map((branch) => branch.name);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  private async getTotalCommits(
+    userId: number,
+    owner: string,
+    name: string,
+  ): Promise<number | null> {
+    try {
+      const token = await this.getGitHubToken(userId);
+
+      // Option 1: Compter via pagination avec /commits (plus fiable)
+      // On récupère la première page et on parse le header Link pour obtenir la dernière page
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/commits?per_page=100&page=1`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.statusText}`);
+      }
+
+      const linkHeader = response.headers.get('Link');
+      const commits = (await response.json()) as GitHubApiCommit[];
+
+      // Si pas de header Link, il n'y a qu'une seule page
+      if (!linkHeader) {
+        return commits.length;
+      }
+
+      // Parser le header Link pour obtenir le numéro de la dernière page
+      const lastMatch = linkHeader.match(
+        /<[^>]+[?&]page=(\d+)[^>]*>; rel="last"/,
+      );
+
+      if (lastMatch) {
+        const lastPage = parseInt(lastMatch[1], 10);
+        // Récupérer la dernière page pour compter exactement
+        const lastPageResponse = await fetch(
+          `https://api.github.com/repos/${owner}/${name}/commits?per_page=100&page=${lastPage}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          },
+        );
+
+        if (lastPageResponse.ok) {
+          const lastPageCommits =
+            (await lastPageResponse.json()) as GitHubApiCommit[];
+          // Calcul: (pages complètes - 1) * 100 + nombre de commits sur la dernière page
+          const total = (lastPage - 1) * 100 + lastPageCommits.length;
+          return total;
+        }
+      }
+
+      // Fallback: utiliser stats/contributors si disponible
+      const statsResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/stats/contributors`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (statsResponse.ok) {
+        const contributors = (await statsResponse.json()) as Array<{
+          total: number;
+        }>;
+        if (Array.isArray(contributors)) {
+          const total = contributors.reduce(
+            (sum, contrib) => sum + (contrib.total || 0),
+            0,
+          );
+          if (total > 0) {
+            return total;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async getCommitsMetadata(
+    userId: number,
+    repoId: number,
+  ): Promise<CommitsMetadata> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const [contributors, branches] = await Promise.all([
+        this.fetchContributors(userId, owner, name),
+        this.fetchBranches(userId, owner, name),
+      ]);
+
+      const authors = contributors.map((contrib) => ({
+        username: contrib.username,
+        avatar: contrib.avatar,
+      }));
+
+      return {
+        authors,
+        branches,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des métadonnées des commits',
+      );
     }
   }
 }
