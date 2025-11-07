@@ -65,7 +65,7 @@ export class AuthController {
       sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
-
+    console.log('redirection sur ', `${frontendUrl}/repositories`);
     return res.redirect(`${frontendUrl}/repositories`);
   }
 
