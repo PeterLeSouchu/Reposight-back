@@ -53,12 +53,18 @@ export interface GitHubApiLanguage {
 export interface GitHubApiIssue {
   number: number;
   title: string;
-  created_at: string;
   html_url: string;
+  state: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
   user: {
     login: string;
     avatar_url: string;
   } | null;
+  labels: Array<{ name: string }>;
+  comments: number;
+  pull_request?: unknown;
 }
 
 export interface GitHubApiPullRequest {
@@ -66,10 +72,39 @@ export interface GitHubApiPullRequest {
   title: string;
   created_at: string;
   html_url: string;
+  state: 'open' | 'closed';
+  updated_at: string;
+  closed_at: string | null;
+  merged_at: string | null;
   user: {
     login: string;
     avatar_url: string;
   } | null;
+}
+
+export interface PullRequest {
+  number: number;
+  title: string;
+  author: {
+    login: string;
+    avatar: string;
+  };
+  state: 'open' | 'closed' | 'merged';
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  mergedAt: string | null;
+  url: string;
+}
+
+export interface PullRequestsMetadata {
+  authors: AuthorInfo[];
+  states: string[];
+}
+
+export interface PullRequestsResponse {
+  pullRequests: PullRequest[];
+  pagination: PaginationInfo;
 }
 
 export interface GitHubRepo {
@@ -144,4 +179,30 @@ export interface GitHubApiBranch {
     url: string;
   };
   protected: boolean;
+}
+
+export interface Issue {
+  number: number;
+  title: string;
+  author: {
+    login: string;
+    avatar: string;
+  };
+  state: 'open' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  comments: number;
+  labels: string[];
+  url: string;
+}
+
+export interface IssuesMetadata {
+  authors: AuthorInfo[];
+  states: string[];
+}
+
+export interface IssuesResponse {
+  issues: Issue[];
+  pagination: PaginationInfo;
 }

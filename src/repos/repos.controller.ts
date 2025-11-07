@@ -82,7 +82,7 @@ export class ReposController {
     @Req() req: RequestWithUser,
     @Param('repoId', ParseIntPipe) repoId: number,
     @Query('page') page?: string,
-    @Query('per_page') perPage?: string,
+    @Query('perPage') perPage?: string,
     @Query('search') search?: string,
     @Query('author') author?: string,
     @Query('branch') branch?: string,
@@ -103,6 +103,89 @@ export class ReposController {
     );
 
     return commits;
+  }
+
+  @Get(':repoId/pull-requests/metadata')
+  @UseGuards(JwtAuthGuard)
+  async getPullRequestsMetadata(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+  ) {
+    const userId = req.user.githubId;
+
+    const metadata = await this.reposService.getPullRequestsMetadata(
+      userId,
+      repoId,
+    );
+
+    return metadata;
+  }
+
+  @Get(':repoId/pull-requests')
+  @UseGuards(JwtAuthGuard)
+  async getPullRequests(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('author') author?: string,
+    @Query('state') state?: string,
+  ) {
+    const userId = req.user.githubId;
+
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const perPageNumber = perPage ? parseInt(perPage, 10) : 100;
+
+    const pullRequests = await this.reposService.getPullRequests(
+      userId,
+      repoId,
+      pageNumber,
+      perPageNumber,
+      author,
+      state,
+    );
+
+    return pullRequests;
+  }
+
+  @Get(':repoId/issues/metadata')
+  @UseGuards(JwtAuthGuard)
+  async getIssuesMetadata(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+  ) {
+    const userId = req.user.githubId;
+
+    const metadata = await this.reposService.getIssuesMetadata(userId, repoId);
+
+    return metadata;
+  }
+
+  @Get(':repoId/issues')
+  @UseGuards(JwtAuthGuard)
+  async getIssues(
+    @Req() req: RequestWithUser,
+    @Param('repoId', ParseIntPipe) repoId: number,
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('author') author?: string,
+    @Query('state') state?: string,
+  ) {
+    const userId = req.user.githubId;
+
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const perPageNumber = perPage ? parseInt(perPage, 10) : 100;
+
+    const issues = await this.reposService.getIssues(
+      userId,
+      repoId,
+      pageNumber,
+      perPageNumber,
+      author,
+      state,
+    );
+
+    return issues;
   }
 
   @Get(':repoId')

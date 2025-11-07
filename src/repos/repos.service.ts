@@ -28,8 +28,14 @@ import type {
   Commit,
   CommitsResponse,
   CommitsMetadata,
-  PaginationInfo,
   GitHubApiBranch,
+  AuthorInfo,
+  PullRequest,
+  PullRequestsMetadata,
+  PullRequestsResponse,
+  Issue,
+  IssuesMetadata,
+  IssuesResponse,
 } from './types/repos.types';
 import type {
   RepoDashboard,
@@ -663,6 +669,387 @@ export class ReposService {
             date: '',
           },
     };
+  }
+
+  private formatPullRequest(pr: GitHubApiPullRequest): PullRequest {
+    const authorLogin = pr.user?.login || 'Unknown';
+    return {
+      number: pr.number,
+      title: pr.title,
+      author: {
+        login: authorLogin,
+        avatar: pr.user?.avatar_url || '',
+      },
+      state:
+        pr.state === 'closed' && pr.merged_at
+          ? 'merged'
+          : (pr.state as 'open' | 'closed'),
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
+      closedAt: pr.closed_at,
+      mergedAt: pr.merged_at,
+      url: pr.html_url,
+    };
+  }
+
+  private formatIssue(issue: GitHubApiIssue): Issue {
+    const authorLogin = issue.user?.login || 'Unknown';
+    return {
+      number: issue.number,
+      title: issue.title,
+      author: {
+        login: authorLogin,
+        avatar: issue.user?.avatar_url || '',
+      },
+      state: issue.state,
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
+      closedAt: issue.closed_at,
+      comments: issue.comments,
+      labels: issue.labels.map((label) => label.name),
+      url: issue.html_url,
+    };
+  }
+
+  private async fetchPullRequestsFiltered(
+    userId: number,
+    owner: string,
+    name: string,
+    author: string | undefined,
+    state: string | undefined,
+  ): Promise<{ pullRequests: GitHubApiPullRequest[]; total: number }> {
+    const token = await this.getGitHubToken(userId);
+    const normalizedAuthor = author ? author.toLowerCase() : undefined;
+    const perPageGitHub = 100;
+    const filterMerged = state === 'merged';
+    const stateParam = filterMerged
+      ? 'closed'
+      : state === 'open' || state === 'closed'
+        ? state
+        : 'all';
+
+    const filtered: GitHubApiPullRequest[] = [];
+    let githubPage = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/pulls?state=${stateParam}&per_page=${perPageGitHub}&page=${githubPage}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          try {
+            const errorBody = await response.json();
+            if (
+              errorBody &&
+              typeof errorBody.message === 'string' &&
+              errorBody.message
+                .toLowerCase()
+                .includes('git repository is empty')
+            ) {
+              return {
+                pullRequests: [],
+                total: 0,
+              };
+            }
+          } catch {}
+        }
+
+        let errorMessage = `Erreur lors de la récupération des pull requests: ${response.statusText}`;
+        try {
+          const text = await response.text();
+          if (text) {
+            errorMessage = text;
+          }
+        } catch {}
+
+        throw new InternalServerErrorException(errorMessage);
+      }
+
+      const prs = (await response.json()) as GitHubApiPullRequest[];
+      if (prs.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      prs.forEach((pr) => {
+        if (filterMerged && !pr.merged_at) {
+          return;
+        }
+
+        if (normalizedAuthor) {
+          const prAuthor = pr.user?.login?.toLowerCase();
+          if (prAuthor !== normalizedAuthor) {
+            return;
+          }
+        }
+
+        filtered.push(pr);
+      });
+
+      const linkHeader = response.headers.get('Link');
+      if (!linkHeader || !linkHeader.includes('rel="next"')) {
+        hasMore = false;
+      } else {
+        githubPage++;
+      }
+    }
+
+    return {
+      pullRequests: filtered,
+      total: filtered.length,
+    };
+  }
+
+  private async fetchPullRequestAuthors(
+    userId: number,
+    owner: string,
+    name: string,
+  ): Promise<AuthorInfo[]> {
+    const token = await this.getGitHubToken(userId);
+    const authorsMap = new Map<string, string>();
+    const perPageGitHub = 100;
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/pulls?state=all&per_page=${perPageGitHub}&page=${page}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          try {
+            const errorBody = await response.json();
+            if (
+              errorBody &&
+              typeof errorBody.message === 'string' &&
+              errorBody.message
+                .toLowerCase()
+                .includes('git repository is empty')
+            ) {
+              return [];
+            }
+          } catch {}
+        }
+        break;
+      }
+
+      const prs = (await response.json()) as GitHubApiPullRequest[];
+      if (prs.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      prs.forEach((pr) => {
+        const login = pr.user?.login;
+        if (login && !authorsMap.has(login)) {
+          authorsMap.set(login, pr.user?.avatar_url || '');
+        }
+      });
+
+      const linkHeader = response.headers.get('Link');
+      if (!linkHeader || !linkHeader.includes('rel="next"')) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+
+    return Array.from(authorsMap.entries()).map(([username, avatar]) => ({
+      username,
+      avatar,
+    }));
+  }
+
+  private async fetchIssuesFiltered(
+    userId: number,
+    owner: string,
+    name: string,
+    author: string | undefined,
+    state: string | undefined,
+  ): Promise<{ issues: GitHubApiIssue[]; total: number }> {
+    const token = await this.getGitHubToken(userId);
+    const normalizedAuthor = author ? author.toLowerCase() : undefined;
+    const perPageGitHub = 100;
+    const stateParam = state === 'open' || state === 'closed' ? state : 'all';
+
+    const issuesFiltered: GitHubApiIssue[] = [];
+    let githubPage = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const params = new URLSearchParams();
+      params.set('state', stateParam);
+      params.set('per_page', perPageGitHub.toString());
+      params.set('page', githubPage.toString());
+      params.set('filter', 'all');
+      params.set(
+        'since',
+        new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+      );
+      params.set('direction', 'desc');
+      if (author) {
+        params.set('creator', author);
+      }
+
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/issues?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          try {
+            const errorBody = await response.json();
+            if (
+              errorBody &&
+              typeof errorBody.message === 'string' &&
+              errorBody.message
+                .toLowerCase()
+                .includes('git repository is empty')
+            ) {
+              return {
+                issues: [],
+                total: 0,
+              };
+            }
+          } catch {}
+        }
+
+        let errorMessage = `Erreur lors de la récupération des issues: ${response.statusText}`;
+        try {
+          const text = await response.text();
+          if (text) {
+            errorMessage = text;
+          }
+        } catch {}
+
+        throw new InternalServerErrorException(errorMessage);
+      }
+
+      const issues = (await response.json()) as GitHubApiIssue[];
+      if (issues.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      issues.forEach((issue) => {
+        if ('pull_request' in issue) {
+          return;
+        }
+
+        if (normalizedAuthor) {
+          const issueAuthor = issue.user?.login?.toLowerCase();
+          if (issueAuthor !== normalizedAuthor) {
+            return;
+          }
+        }
+
+        issuesFiltered.push(issue);
+      });
+
+      const linkHeader = response.headers.get('Link');
+      if (!linkHeader || !linkHeader.includes('rel="next"')) {
+        hasMore = false;
+      } else {
+        githubPage++;
+      }
+    }
+
+    return {
+      issues: issuesFiltered,
+      total: issuesFiltered.length,
+    };
+  }
+
+  private async fetchIssueAuthors(
+    userId: number,
+    owner: string,
+    name: string,
+  ): Promise<AuthorInfo[]> {
+    const token = await this.getGitHubToken(userId);
+    const authorsMap = new Map<string, string>();
+    const perPageGitHub = 100;
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/issues?state=all&per_page=${perPageGitHub}&page=${page}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          try {
+            const errorBody = await response.json();
+            if (
+              errorBody &&
+              typeof errorBody.message === 'string' &&
+              errorBody.message
+                .toLowerCase()
+                .includes('git repository is empty')
+            ) {
+              return [];
+            }
+          } catch {}
+        }
+        break;
+      }
+
+      const issues = (await response.json()) as GitHubApiIssue[];
+      if (issues.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      issues.forEach((issue) => {
+        if ('pull_request' in issue) {
+          return;
+        }
+
+        const login = issue.user?.login;
+        if (login && !authorsMap.has(login)) {
+          authorsMap.set(login, issue.user?.avatar_url || '');
+        }
+      });
+
+      const linkHeader = response.headers.get('Link');
+      if (!linkHeader || !linkHeader.includes('rel="next"')) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+
+    return Array.from(authorsMap.entries()).map(([username, avatar]) => ({
+      username,
+      avatar,
+    }));
   }
 
   private extractRecentActivity(
@@ -1503,6 +1890,164 @@ export class ReposService {
     } catch (error) {
       throw new InternalServerErrorException(
         'Erreur lors de la récupération des métadonnées des commits',
+      );
+    }
+  }
+
+  async getPullRequestsMetadata(
+    userId: number,
+    repoId: number,
+  ): Promise<PullRequestsMetadata> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const authors = await this.fetchPullRequestAuthors(userId, owner, name);
+
+      return {
+        authors,
+        states: ['open', 'closed', 'merged'],
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des métadonnées des pull requests',
+      );
+    }
+  }
+
+  async getPullRequests(
+    userId: number,
+    repoId: number,
+    page: number = 1,
+    perPage: number = 100,
+    author?: string,
+    state?: string,
+  ): Promise<PullRequestsResponse> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const trimmedAuthor = author?.trim() || '';
+      const authorParam = trimmedAuthor.length > 0 ? trimmedAuthor : undefined;
+
+      const trimmedState = state?.trim().toLowerCase() || '';
+      const stateParam = trimmedState.length > 0 ? trimmedState : undefined;
+
+      const allowedStates = new Set(['open', 'closed', 'merged', 'all']);
+      if (stateParam && !allowedStates.has(stateParam)) {
+        throw new BadRequestException('État de pull request invalide');
+      }
+
+      const { pullRequests, total } = await this.fetchPullRequestsFiltered(
+        userId,
+        owner,
+        name,
+        authorParam,
+        stateParam === 'all' ? undefined : stateParam,
+      );
+
+      const startIndex = (page - 1) * perPage;
+      const endIndex = startIndex + perPage;
+
+      const paginatedPRs = pullRequests.slice(startIndex, endIndex);
+
+      const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
+
+      return {
+        pullRequests: paginatedPRs.map((pr) => this.formatPullRequest(pr)),
+        pagination: {
+          page,
+          perPage,
+          total,
+          totalPages,
+          hasNext: endIndex < total,
+          hasPrevious: page > 1 && total > 0,
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des pull requests',
+      );
+    }
+  }
+
+  async getIssuesMetadata(
+    userId: number,
+    repoId: number,
+  ): Promise<IssuesMetadata> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const authors = await this.fetchIssueAuthors(userId, owner, name);
+
+      return {
+        authors,
+        states: ['open', 'closed'],
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des métadonnées des issues',
+      );
+    }
+  }
+
+  async getIssues(
+    userId: number,
+    repoId: number,
+    page: number = 1,
+    perPage: number = 100,
+    author?: string,
+    state?: string,
+  ): Promise<IssuesResponse> {
+    try {
+      const repo = await this.getSelectedRepo(userId, repoId);
+      const [owner, name] = repo.fullName.split('/');
+
+      const trimmedAuthor = author?.trim() || '';
+      const authorParam = trimmedAuthor.length > 0 ? trimmedAuthor : undefined;
+
+      const trimmedState = state?.trim().toLowerCase() || '';
+      const stateParam = trimmedState.length > 0 ? trimmedState : undefined;
+
+      const allowedStates = new Set(['open', 'closed', 'all']);
+      if (stateParam && !allowedStates.has(stateParam)) {
+        throw new BadRequestException("État d'issue invalide");
+      }
+
+      const { issues, total } = await this.fetchIssuesFiltered(
+        userId,
+        owner,
+        name,
+        authorParam,
+        stateParam === 'all' ? undefined : stateParam,
+      );
+
+      const startIndex = (page - 1) * perPage;
+      const endIndex = startIndex + perPage;
+      const paginatedIssues = issues.slice(startIndex, endIndex);
+      const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
+
+      return {
+        issues: paginatedIssues.map((issue) => this.formatIssue(issue)),
+        pagination: {
+          page,
+          perPage,
+          total,
+          totalPages,
+          hasNext: endIndex < total,
+          hasPrevious: page > 1 && total > 0,
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération des issues',
       );
     }
   }
