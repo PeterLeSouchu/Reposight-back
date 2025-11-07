@@ -50,6 +50,7 @@ export class AuthController {
 
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
+    console.log('isProduction', isProduction);
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:3000',
