@@ -21,7 +21,7 @@ L’application n’est malheureusement pas disponible en production : elle re
   - Recherche et filtres avancés par auteur, branche et statut pour les commits, PRs et issues.
 - Parcours d’onboarding guidé pour accompagner les nouveaux utilisateurs.
 
-**Ce dépôt contient la partie front-end de Reposight. La partie back-end est disponible ici : [Reposight-front](https://github.com/PeterLeSouchu/Reposight-front).**
+**Ce dépôt contient la partie back-end de Reposight. La partie front-end est disponible ici : [Reposight-front](https://github.com/PeterLeSouchu/Reposight-front).**
 
 ## 🛠️ Fonctionnement du back-end
 
