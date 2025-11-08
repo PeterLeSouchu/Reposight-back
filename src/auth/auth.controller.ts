@@ -31,42 +31,35 @@ export class AuthController {
   ): Promise<void> {
     const user = req.user;
 
-    const existingUser = await this.usersService.findUserByGithubId(
-      user.githubId,
-    );
-
-    if (!existingUser) {
-      await this.usersService.create({
-        githubId: user.githubId,
-        githubAccessToken: user.accessToken || '',
-      });
-    } else {
-      await this.usersService.update(user.githubId, {
-        githubAccessToken: user.accessToken || '',
-      });
-    }
-
     const { refreshToken } = await this.authService.generateTokens(user);
 
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
-    console.log('isProduction', isProduction);
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:3000',
     );
 
-    // Refresh token
-    // En production: secure: true + sameSite: 'none' (HTTPS + cross-site)
-    // En dev: secure: false + sameSite: 'lax' (HTTP local, fonctionne même cross-origin en localhost)
+    // Set cookie sur api.com
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction, // true seulement en production (HTTPS)
-      sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.redirect(`${frontendUrl}/repositories`);
+    // Réponse HTML intermédiaire qui redirige le front
+    res.send(`
+      <html>
+        <body>
+          <script>
+            // Redirection vers le front après que le cookie est stocké
+            window.location.href = "${frontendUrl}/repositories";
+          </script>
+          <p>Redirecting...</p>
+        </body>
+      </html>
+    `);
   }
 
   @Post('refresh')
