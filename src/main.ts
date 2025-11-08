@@ -13,8 +13,8 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL || 'https://reposight-front.vercel.app',
     credentials: true,
   });
-  console.log('process.env.FRONTEND_URL', process.env.FRONTEND_URL);
-  console.log('PORT', process.env.PORT);
+  // console.log('process.env.FRONTEND_URL', process.env.FRONTEND_URL);
+  // console.log('PORT', process.env.PORT);
 
   app.useGlobalPipes(
     new ValidationPipe({
