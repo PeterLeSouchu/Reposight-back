@@ -10,7 +10,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: 'https://reposight-front.vercel.app',
+    origin: process.env.FRONTEND_URL || 'https://reposight-front.vercel.app',
     credentials: true,
   });
 
