@@ -4,7 +4,7 @@
 
 L’application n’est malheureusement pas disponible en production : elle repose sur des cookies tiers pour l’authentification (désactivés par défaut dans la plupart des navigateurs) et le front ne partage pas le même nom de domaine que le back-end.
 
-![Screenshot de l'application](public/screenshot-home.png)
+![Screenshot de l'application](docs/images/screenshot-home.png)
 
 ## ⭐ Fonctionnalités principales
 
