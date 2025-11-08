@@ -63,7 +63,6 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction, // true seulement en production (HTTPS)
       sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
-      partitioned: false,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
