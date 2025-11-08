@@ -61,7 +61,6 @@ export class AuthController {
     // En dev: secure: false + sameSite: 'lax' (HTTP local, fonctionne même cross-origin en localhost)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      domain: isProduction ? 'reposight-front.vercel.app' : 'localhost:3000',
       secure: isProduction, // true seulement en production (HTTPS)
       sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
