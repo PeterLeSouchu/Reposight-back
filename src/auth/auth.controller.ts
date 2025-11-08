@@ -28,7 +28,7 @@ export class AuthController {
   async githubCallback(
     @Req() req: RequestWithUser,
     @Res() res: Response,
-  ): Promise<void> {
+  ): Promise<Response> {
     const user = req.user;
 
     const existingUser = await this.usersService.findUserByGithubId(
@@ -50,7 +50,6 @@ export class AuthController {
 
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
-    console.log('isProduction', isProduction);
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:3000',
@@ -66,7 +65,9 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
     });
 
-    return res.redirect(`${frontendUrl}/repositories`);
+    return res.json({
+      message: 'Authentication successful',
+    });
   }
 
   @Post('refresh')
