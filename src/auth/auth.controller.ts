@@ -108,6 +108,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction, // true seulement en production (HTTPS)
       sameSite: isProduction ? 'none' : 'lax', // 'none' pour cross-site en prod, 'lax' en dev
+      domain: '.peterlesouchu.com',
     });
     return res.json({ message: 'Déconnexion réussie' });
   }
