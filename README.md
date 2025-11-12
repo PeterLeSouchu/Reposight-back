@@ -2,7 +2,7 @@
 
 **Reposight est une application web réalisée dans le cadre de mon portfolio pour aider les développeurs à visualiser, analyser et comparer les statistiques de leurs dépôts GitHub. Les utilisateurs peuvent lier leur compte GitHub à Reposight, explorer leurs dépôts, suivre leurs performances via des graphiques dédiés et disposer d’une vision synthétique pour mieux orienter leur travail en équipe.**
 
-L’application n’est malheureusement pas disponible en production : elle repose sur des cookies tiers pour l’authentification car le front-end ne partage pas le même nom de domaine que le back-end et ces derniers (cookies tiers) sont désactivés par défaut dans la plupart des navigateurs.
+L'application est accessible à l'adresse suivante: https://reposight.peterlesouchu.com
 
 ![Screenshot de l'application](docs/images/screenshot-home.png)
 
