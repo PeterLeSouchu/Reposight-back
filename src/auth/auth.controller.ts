@@ -53,7 +53,7 @@ export class AuthController {
     console.log('isProduction', isProduction);
     const frontendUrl = this.configService.get<string>(
       'FRONTEND_URL',
-      'http://localhost:3000',
+      'https://reposight.peterlesouchu.com',
     );
 
     // Refresh token

@@ -10,7 +10,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'https://reposight.peterlesouchu.com',
     credentials: true,
   });
   // console.log('process.env.FRONTEND_URL', process.env.FRONTEND_URL);
@@ -26,6 +26,6 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
+  await app.listen(process.env.PORT ?? 8080, '0.0.0.0');
 }
 bootstrap();
