@@ -114,6 +114,7 @@ export class UsersController {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
+      domain: '.peterlesouchu.com',
     });
 
     return res.json({
