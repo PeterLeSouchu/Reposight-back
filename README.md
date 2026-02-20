@@ -47,7 +47,7 @@ L'application est accessible à l'adresse suivante: https://reposight.peterlesou
 
 ### 📖 Documentation Swagger
 
-- Une interface Swagger est mise en place pour explorer et tester l’ensemble des endpoints de l’API directement depuis le navigateur.
+- Une interface Swagger est mise en place pour explorer et tester l’ensemble des endpoints de l’API directement depuis le navigateur via : https://api-reposight.peterlesouchu.com/api.
 - Pour accéder aux routes protégées via Swagger, il est nécessaire de fournir un `accessToken` valide :
   1. Rendez-vous sur l’application front-end : https://reposight.peterlesouchu.com.
   2. Connectez-vous avec votre compte GitHub.
