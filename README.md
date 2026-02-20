@@ -44,3 +44,12 @@ L'application est accessible à l'adresse suivante: https://reposight.peterlesou
   - `JwtAuthGuard` vérifie systématiquement le jeton d’accès avant d’autoriser une requête sur les endpoints sécurisés (`/repos`, `/user`, etc.) et expose l’identifiant utilisateur dans `req.user.id`.
   - `JwtRefreshGuard` sécurise `/auth/refresh` en validant le cookie `refreshToken` avant de délivrer un nouveau jeton d’accès.
 - Gestion globale des erreurs via `AllExceptionsFilter`, qui renvoie des réponses normalisées et détecte les tokens invalides/expirés pour signaler explicitement au front qu’un rafraîchissement est nécessaire.
+
+### 📖 Documentation Swagger
+
+- Une interface Swagger est mise en place pour explorer et tester l’ensemble des endpoints de l’API directement depuis le navigateur.
+- Pour accéder aux routes protégées via Swagger, il est nécessaire de fournir un `accessToken` valide :
+  1. Rendez-vous sur l’application front-end : https://reposight.peterlesouchu.com.
+  2. Connectez-vous avec votre compte GitHub.
+  3. Ouvrez les DevTools de votre navigateur et inspectez la réponse de la requête `/auth/refresh` pour récupérer l’`accessToken`.
+  4. Dans l’interface Swagger, cliquez sur le bouton **Authorize** et collez l’`accessToken` récupéré.
