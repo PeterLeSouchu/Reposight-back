@@ -27,7 +27,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Reposight API')
-    .setDescription('API de Reposight')
+    .setDescription('API de Reposight. Pour tester les endpoints, vous pouvez utiliser l\'application front-end disponible à l\'adresse suivante: https://reposight.peterlesouchu.com. Connectez-vous, et récupérer l\'acces token en ouvrant les devtools, et en regardant la response de la requête refresh.')
     .setVersion('1.0')
     .addBearerAuth()
     .addCookieAuth('refresh_token')
