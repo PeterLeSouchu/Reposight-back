@@ -9,6 +9,12 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { UsersService } from './users.service';
@@ -17,6 +23,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { RequestWithUser } from '../auth/types/auth.types';
 import type { UserProfileResponse } from './types/users.types';
 
+@ApiTags('Users')
+@ApiBearerAuth()
 @Controller('user')
 export class UsersController {
   constructor(
@@ -27,6 +35,10 @@ export class UsersController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Récupérer le profil de l\'utilisateur connecté' })
+  @ApiResponse({ status: 200, description: 'Profil utilisateur (avatar, username, email, isNewUser)' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async getProfile(@Req() req: RequestWithUser): Promise<UserProfileResponse> {
     const githubId = req.user.githubId;
 
@@ -74,6 +86,10 @@ export class UsersController {
 
   @Patch('steps')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Marquer l\'onboarding comme terminé' })
+  @ApiResponse({ status: 200, description: 'Stepper terminé avec succès' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async completeSteps(@Req() req: RequestWithUser) {
     const githubId = req.user.githubId;
 
@@ -93,6 +109,10 @@ export class UsersController {
 
   @Delete('me')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Supprimer le compte utilisateur et tous ses repos' })
+  @ApiResponse({ status: 200, description: 'Compte et repos supprimés' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async deleteAccount(
     @Req() req: RequestWithUser,
     @Res() res: Response,

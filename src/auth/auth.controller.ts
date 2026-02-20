@@ -1,6 +1,14 @@
 import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiExcludeEndpoint,
+} from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -8,6 +16,7 @@ import { RefreshTokenGuard } from './refresh-token.guard';
 import { UsersService } from '../users/users.service';
 import type { AuthenticatedUser, RequestWithUser } from './types/auth.types';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -18,6 +27,8 @@ export class AuthController {
 
   @Get('github')
   @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'Redirection OAuth GitHub' })
+  @ApiResponse({ status: 302, description: 'Redirige vers la page de login GitHub' })
   async githubAuth() {
     // Nécessaire pour déclarer la route GET /auth/github
     // La redirection se fait automatiquement par Passport
@@ -25,6 +36,7 @@ export class AuthController {
 
   @Get('github/callback')
   @UseGuards(AuthGuard('github'))
+  @ApiExcludeEndpoint()
   async githubCallback(
     @Req() req: RequestWithUser,
     @Res() res: Response,
@@ -71,6 +83,10 @@ export class AuthController {
 
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)
+  @ApiCookieAuth('refresh_token')
+  @ApiOperation({ summary: 'Rafraîchir les tokens JWT' })
+  @ApiResponse({ status: 200, description: 'Tokens rafraîchis avec succès' })
+  @ApiResponse({ status: 401, description: 'Refresh token invalide ou expiré' })
   async refreshToken(
     @Req() req: RequestWithUser,
     @Res() res: Response,
@@ -101,6 +117,10 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Déconnexion — supprime le cookie refresh_token' })
+  @ApiResponse({ status: 200, description: 'Déconnexion réussie' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
   logout(@Res() res: Response): Response {
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
